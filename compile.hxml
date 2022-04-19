@@ -2,6 +2,7 @@
 -lib heaps
 -lib hlsdl	
 #-lib hldx for windows
--hl main.hl
--main Main
-#-D windowSize=1366x768
+-hl mainapp.hl
+-main MainApp
+-D windowSize=1000x500
+-D windowTitle=SLUFE
