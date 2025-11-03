@@ -19,9 +19,15 @@ import { editSingleImage, editImage } from '../services/imageEditor.js';
 import { generateVideo } from '../services/videoGenerator.js';
 import { generateVideoFromImage } from '../services/videoImageGenerator.js';
 import { analyzeImage } from '../services/imageAnalyzer.js';
-import { saveCompleteOperation } from '../services/dataStorage.js';
+import { saveCompleteOperation, saveWorkflowExecution } from '../services/dataStorage.js';
+
+// Import du nouveau système de workflows
+import WorkflowRunner from '../services/WorkflowRunner.js';
 
 const router = express.Router();
+
+// Instance du runner de workflows
+const workflowRunner = new WorkflowRunner();
 
 // Cache en mémoire pour les analyses d'images
 // Structure: { imageHash: { description, timestamp } }
@@ -89,6 +95,149 @@ function conditionalMulter(req, res, next) {
   }
   next();
 }
+
+/**
+ * POST /api/workflow/run
+ * Exécute un workflow complet basé sur un JSON de tâches séquentielles
+ * 
+ * Content-Type: multipart/form-data ou application/json
+ * 
+ * Multipart (avec fichiers):
+ * - workflow: string (requis) - JSON du workflow à exécuter
+ * - images[]: File[] (optionnel) - Images d'entrée
+ * - user_prompt: string (optionnel) - Prompt utilisateur
+ * 
+ * JSON (sans fichiers):
+ * - workflow: object (requis) - Objet workflow avec tâches
+ * - inputs: object (optionnel) - Données d'entrée du workflow
+ */
+router.post('/run', conditionalMulter, async (req, res) => {
+  try {
+    global.logWorkflow('🚀 POST /workflow/run - Démarrage exécution workflow', {
+      contentType: req.get('Content-Type'),
+      hasFiles: !!req.files,
+      bodyKeys: Object.keys(req.body)
+    });
+
+    let workflow;
+    let inputs = {};
+
+    // Parse du workflow selon le format de la requête
+    if (req.get('Content-Type')?.includes('multipart/form-data')) {
+      // Format multipart avec fichiers
+      if (!req.body.workflow) {
+        return res.status(400).json({
+          success: false,
+          error: 'Le workflow JSON est requis dans le champ "workflow"'
+        });
+      }
+
+      try {
+        workflow = JSON.parse(req.body.workflow);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: 'Le workflow JSON est invalide: ' + error.message
+        });
+      }
+
+      // Préparation des inputs avec fichiers uploadés
+      if (req.files && req.files.length > 0) {
+        inputs.images = req.files.map(file => ({
+          buffer: file.buffer,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size
+        }));
+      }
+
+      if (req.body.user_prompt) {
+        inputs.user_prompt = req.body.user_prompt;
+      }
+
+    } else {
+      // Format JSON pur
+      workflow = req.body.workflow;
+      inputs = req.body.inputs || {};
+
+      if (!workflow) {
+        return res.status(400).json({
+          success: false,
+          error: 'Le workflow est requis'
+        });
+      }
+    }
+
+    // Validation de base du workflow
+    if (!workflow.tasks) {
+      return res.status(400).json({
+        success: false,
+        error: 'Le workflow doit contenir une liste "tasks"'
+      });
+    }
+
+    global.logWorkflow('📋 Workflow reçu', {
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      taskCount: workflow.tasks.length,
+      inputKeys: Object.keys(inputs)
+    });
+
+    // Exécution du workflow
+    const executionResult = await workflowRunner.executeWorkflow(
+      workflow,
+      inputs
+    );
+
+    global.logWorkflow('✅ Workflow exécuté avec succès', {
+      workflowId: executionResult.workflow_id,
+      executionTime: executionResult.execution.execution_time,
+      tasksCompleted: executionResult.execution.progress.completed_tasks
+    });
+
+    // Sauvegarde complète du workflow avec tous les assets
+    try {
+      const saveResult = await saveWorkflowExecution({
+        operationId: executionResult.workflow_id,
+        type: 'workflow_execution',
+        prompt: inputs.user_prompt || workflow.name || 'Workflow sans titre',
+        workflow: workflow,
+        inputs: inputs,
+        results: executionResult.results,
+        taskResults: executionResult.task_results,
+        executionTime: executionResult.execution.execution_time,
+        status: executionResult.execution.status
+      });
+      
+      global.logWorkflow('💾 Workflow sauvegardé sur disque', {
+        workflowDir: saveResult.workflowDir,
+        filesCount: saveResult.filesCount,
+        operationId: saveResult.operationId
+      });
+      
+    } catch (saveError) {
+      global.logWorkflow('⚠️ Erreur lors de la sauvegarde', {
+        error: saveError.message
+      });
+      // Continue même si la sauvegarde échoue
+    }
+
+    res.json(executionResult);
+
+  } catch (error) {
+    global.logWorkflow('❌ Erreur lors de l\'exécution du workflow', {
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de l\'exécution du workflow',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 /**
  * POST /api/workflow/analyze

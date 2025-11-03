@@ -1,6 +1,12 @@
-# SLUFE IA - Application de Génération par IA
+# 🤖 SLUFE IA - Application de Génération par IA
 
-Application complète avec backend Node.js/Express et frontend Vue.js/Quasar pour la génération d'images et de vidéos par IA.
+Application complète avec **backend Node.js/Express** et **frontend Vue.js/Quasar** pour la génération d'images et de vidéos par IA.
+
+## 🏗️ Architecture
+
+- **🎨 Frontend** : Déployé sur Vercel → https://slufe.vercel.app
+- **🚀 Backend** : À déployer sur VPS (requêtes IA longues > 30s)
+- **🤖 IA Services** : Replicate, OpenAI, etc.
 
 ## 📋 Prérequis
 

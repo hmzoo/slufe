@@ -1,0 +1,25 @@
+# Vercel - Frontend only
+.vercel
+*.log
+.env.local
+.env.production
+
+# Backend (non déployé sur Vercel)
+backend/
+api/
+
+# Build artifacts  
+dist/
+build/
+node_modules/
+
+# Documentation et scripts
+*.md
+deploy-vercel.sh
+test-vercel-deployment.sh
+setup.sh
+
+# Logs et temporaires
+*.log
+.DS_Store
+Thumbs.db

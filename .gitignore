@@ -10,3 +10,4 @@ backend/data/
 # Frontend
 frontend/dist/
 frontend/.quasar/
+.vercel

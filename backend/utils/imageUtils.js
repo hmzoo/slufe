@@ -1,4 +1,10 @@
-import sharp from 'sharp';
+// import sharp from 'sharp';
+let sharp = null;
+try {
+  sharp = (await import('sharp')).default;
+} catch (error) {
+  console.warn('⚠️ Sharp module not available, image processing features will be limited:', error.message);
+}
 
 /**
  * Utilitaires pour le traitement des images
@@ -10,6 +16,16 @@ import sharp from 'sharp';
  * @returns {Promise<Object>} - { width, height, orientation: 'horizontal'|'vertical'|'square', ratio }
  */
 export async function detectImageOrientation(imageBuffer) {
+  if (!sharp) {
+    console.warn('⚠️ Sharp not available, returning default orientation');
+    return {
+      width: 512,
+      height: 512,
+      orientation: 'square',
+      ratio: 1
+    };
+  }
+  
   const metadata = await sharp(imageBuffer).metadata();
   const { width, height } = metadata;
   
@@ -57,6 +73,11 @@ export function getOptimalVideoFormat(orientation) {
  * @returns {Promise<Buffer>} - Buffer de l'image recadrée
  */
 export async function cropImageToRatio(imageBuffer, targetRatio) {
+  if (!sharp) {
+    console.warn('⚠️ Sharp not available, returning original image buffer');
+    return imageBuffer;
+  }
+  
   const metadata = await sharp(imageBuffer).metadata();
   const { width, height } = metadata;
   
@@ -138,13 +159,20 @@ export async function prepareImageForVideo(imageBuffer, forcedRatio = null) {
   
   // Recadrer l'image
   const croppedBuffer = await cropImageToRatio(imageBuffer, aspectRatio);
-  const croppedMetadata = await sharp(croppedBuffer).metadata();
+  
+  let croppedSize;
+  if (sharp) {
+    const croppedMetadata = await sharp(croppedBuffer).metadata();
+    croppedSize = { width: croppedMetadata.width, height: croppedMetadata.height };
+  } else {
+    croppedSize = { width, height }; // Utiliser les dimensions originales si sharp n'est pas disponible
+  }
   
   return {
     buffer: croppedBuffer,
     aspectRatio,
     originalSize: { width, height },
-    croppedSize: { width: croppedMetadata.width, height: croppedMetadata.height },
+    croppedSize,
     orientation,
     originalRatio: ratio
   };

@@ -3,12 +3,18 @@
     <q-header elevated class="bg-primary text-white">
       <q-toolbar>
         <q-toolbar-title>
-          <q-icon name="auto_awesome" size="sm" class="q-mr-sm" />
-          SLUFE IA - Générateur d'Images
+          <q-icon name="account_tree" size="sm" class="q-mr-sm" />
+          SLUFE - Workflow Engine IA
         </q-toolbar-title>
 
+        <q-space />
+
+        <q-btn flat round dense icon="history" @click="showHistory">
+          <q-tooltip>Historique des workflows</q-tooltip>
+        </q-btn>
+
         <q-btn flat round dense icon="help_outline" @click="showHelp">
-          <q-tooltip>Aide</q-tooltip>
+          <q-tooltip>Guide des workflows</q-tooltip>
         </q-btn>
       </q-toolbar>
     </q-header>
@@ -20,7 +26,7 @@
     <q-footer elevated class="bg-grey-8 text-white">
       <q-toolbar>
         <q-toolbar-title class="text-center text-caption">
-          © 2025 SLUFE IA - Application de génération par IA
+          © 2025 SLUFE - Workflow Engine IA | Système unifié de traitement par workflows
         </q-toolbar-title>
       </q-toolbar>
     </q-footer>
@@ -28,24 +34,57 @@
 </template>
 
 <script setup>
-import { useQuasar } from 'quasar';
+import { useQuasar } from 'quasar'
+import { useWorkflowStore } from 'src/stores/useWorkflowStore'
 
-const $q = useQuasar();
+const $q = useQuasar()
+const workflowStore = useWorkflowStore()
+
+function showHistory() {
+  $q.dialog({
+    title: 'Historique des Workflows',
+    message: workflowStore.workflowHistory.length > 0 
+      ? `Vous avez ${workflowStore.workflowHistory.length} exécution(s) dans l'historique.`
+      : 'Aucune exécution dans l\'historique pour le moment.',
+    ok: 'Fermer',
+  })
+}
 
 function showHelp() {
   $q.dialog({
-    title: 'Aide',
+    title: '🔧 Guide du Workflow Engine',
     message: `
-      <p><strong>Comment utiliser l'application :</strong></p>
-      <ol>
-        <li>Ajoutez une ou plusieurs images (drag & drop ou parcourir)</li>
-        <li>Écrivez votre prompt décrivant ce que vous voulez générer</li>
-        <li>Cliquez sur "Envoyer" pour lancer la génération</li>
-        <li>Téléchargez ou réutilisez le résultat</li>
-      </ol>
+      <div style="text-align: left;">
+        <p><strong>🚀 Nouveau système unifié basé sur les workflows !</strong></p>
+        
+        <h3>📋 Templates disponibles :</h3>
+        <ul>
+          <li><strong>Génération simple</strong> - Créer une image depuis un prompt</li>
+          <li><strong>Génération améliorée</strong> - L'IA améliore votre prompt automatiquement</li>
+          <li><strong>Édition d'image</strong> - Modifier une image existante</li>
+          <li><strong>Analyse d'images</strong> - Décrire le contenu d'images</li>
+          <li><strong>Génération vidéo</strong> - Créer des vidéos courtes</li>
+          <li><strong>Pipeline complet</strong> - Enchaîner plusieurs opérations</li>
+        </ul>
+        
+        <h3>⚡ Comment utiliser :</h3>
+        <ol>
+          <li>Choisissez un template dans le menu "Templates"</li>
+          <li>Remplissez les paramètres d'entrée requis</li>
+          <li>Cliquez sur "Exécuter le workflow"</li>
+          <li>Consultez les résultats de chaque étape</li>
+        </ol>
+        
+        <h3>🔧 Fonctions avancées :</h3>
+        <ul>
+          <li>Modifiez la configuration JSON pour personnaliser</li>
+          <li>Réexécutez des workflows depuis l'historique</li>
+          <li>Enchaînez plusieurs tâches dans un seul workflow</li>
+        </ul>
+      </div>
     `,
     html: true,
     ok: 'Compris',
-  });
+  })
 }
 </script>

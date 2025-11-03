@@ -4,10 +4,13 @@ const { configure } = require('quasar/wrappers');
 
 module.exports = configure(function (ctx) {
   return {
-    boot: ['axios'],
+    // Boot files (app initialization code)
+    boot: ['axios', 'pinia'],
     
+    // CSS files
     css: ['app.scss'],
     
+    // Quasar plugins
     extras: [
       'roboto-font',
       'material-icons',
@@ -19,35 +22,66 @@ module.exports = configure(function (ctx) {
         node: 'node16',
       },
       
-      vueRouterMode: 'hash',
+      vueRouterMode: 'hash', // 'hash' pour compatibilité SPA sur Vercel
       
-      vitePlugins: [
-        ['@intlify/vite-plugin-vue-i18n', {
-          include: [
-            './src/i18n/**'
-          ]
-        }]
-      ]
+      // Configuration Vite
+      vitePlugins: [],
+      
+      // Variables d'environnement pour le build
+      env: ctx.dev 
+        ? { 
+            API_URL: 'http://localhost:3000/api'
+          }
+        : {
+            // TODO: Remplacer par l'URL de votre futur VPS/backend
+            API_URL: 'https://your-backend-server.com/api'
+          }
     },
     
     devServer: {
       open: true,
+      port: 9000,
       proxy: {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
+          pathRewrite: {
+            '^/api': '/api'
+          }
         },
       },
     },
     
     framework: {
-      config: {},
+      config: {
+        // Configuration globale Quasar
+        notify: {
+          position: 'top-right'
+        },
+        loading: {
+          delay: 400
+        }
+      },
       
-      plugins: ['Notify', 'Dialog', 'Loading'],
+      // Plugins Quasar à utiliser
+      plugins: [
+        'Notify',
+        'Dialog', 
+        'Loading',
+        'LocalStorage',
+        'SessionStorage'
+      ],
     },
     
-    animations: [],
+    // Animations Quasar
+    animations: [
+      'fadeIn',
+      'fadeOut',
+      'slideInUp',
+      'slideOutDown'
+    ],
     
+    // Configuration SSR (pas utilisée mais gardée pour référence)
     ssr: {
       pwa: false,
       prodPort: 3000,
@@ -56,6 +90,7 @@ module.exports = configure(function (ctx) {
       ],
     },
     
+    // Configuration PWA (pas utilisée mais gardée pour référence)  
     pwa: {
       workboxMode: 'generateSW',
       injectPwaMetaTags: true,
@@ -64,26 +99,10 @@ module.exports = configure(function (ctx) {
       useCredentialsForManifestTag: false,
     },
     
+    // Autres plateformes (non utilisées)
     cordova: {},
-    
-    capacitor: {
-      hideSplashscreen: true,
-    },
-    
-    electron: {
-      inspectPort: 5858,
-      
-      bundler: 'packager',
-      
-      packager: {},
-      
-      builder: {
-        appId: 'slufe-frontend',
-      },
-    },
-    
-    bex: {
-      contentScripts: ['my-content-script'],
-    },
+    capacitor: {},
+    electron: {},
+    bex: {},
   };
 });

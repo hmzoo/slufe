@@ -1,29 +1,31 @@
-# Guide de démarrage rapide
+# ⚡ Guide de démarrage rapide
 
-## Installation express
+## 🚀 Frontend (Déjà déployé)
 
+**URL de production** : https://slufe.vercel.app ✅
+
+## 🛠️ Développement local
+
+### Installation rapide
 ```bash
-# Rendre le script exécutable (Linux/Mac)
-chmod +x setup.sh
-
-# Lancer l'installation
-./setup.sh
-```
-
-## Ou manuellement
-
-```bash
-# Installation
+# Installation complète
 npm run setup
 
-# Démarrage
+# Démarrage dev (frontend + backend)
 npm run dev
 ```
 
-## Accès
+### Accès local
+- **Backend API** : http://localhost:3000/api
+- **Frontend** : http://localhost:9000
 
-- Backend API : http://localhost:3000/api
-- Frontend : http://localhost:9000
+## 🎯 Production
+
+### Frontend ✅ 
+Déjà configuré sur Vercel
+
+### Backend ⚠️
+À déployer sur VPS - Voir `DEPLOYMENT.md`
 
 ## Test de l'API
 

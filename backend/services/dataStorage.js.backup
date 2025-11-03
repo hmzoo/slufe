@@ -198,32 +198,6 @@ export async function listOperations(limit = 50) {
 }
 
 /**
- * Télécharge une image depuis une URL et la sauvegarde à un chemin spécifique
- * @param {string} url - URL de l'image à télécharger
- * @param {string} targetPath - Chemin complet où sauvegarder l'image
- * @returns {Promise<void>}
- */
-export async function downloadImageToPath(url, targetPath) {
-  try {
-    console.log(`📥 Téléchargement de l'image depuis: ${url.substring(0, 80)}...`);
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await fs.writeFile(targetPath, buffer);
-    
-    const filename = path.basename(targetPath);
-    console.log(`✅ Image téléchargée et sauvegardée: ${filename} (${Math.round(buffer.length / 1024)}KB)`);
-  } catch (error) {
-    console.error(`❌ Erreur téléchargement image vers ${targetPath}:`, error);
-    throw error;
-  }
-}
-
-/**
  * Télécharge un fichier depuis une URL et le sauvegarde
  * @param {string} url - URL du fichier à télécharger
  * @param {string} operationId - ID de l'opération
@@ -428,7 +402,7 @@ export async function saveWorkflowExecution(workflowExecution) {
           try {
             const assetFilename = `${operationId}_task_${taskResult.type}_${i + 1}.jpg`;
             const assetPath = path.join(workflowDir, assetFilename);
-            await downloadImageToPath(taskResult.outputs.image, assetPath);
+            await downloadAndSaveResultCustom(taskResult.outputs.image, operationId, assetFilename);
             downloadedAssets.push({
               taskId: taskResult.type,
               type: 'image',
@@ -443,60 +417,12 @@ export async function saveWorkflowExecution(workflowExecution) {
           }
         }
         
-        // Images éditées (multiples)
-        if (taskResult.outputs.edited_images && Array.isArray(taskResult.outputs.edited_images)) {
-          for (let j = 0; j < taskResult.outputs.edited_images.length; j++) {
-            const editedImageUrl = taskResult.outputs.edited_images[j];
-            if (typeof editedImageUrl === 'string') {
-              try {
-                const assetFilename = `${operationId}_task_${taskResult.type}_edited_${i + 1}_${j + 1}.jpg`;
-                const assetPath = path.join(workflowDir, assetFilename);
-                await downloadImageToPath(editedImageUrl, assetPath);
-                downloadedAssets.push({
-                  taskId: taskResult.type,
-                  type: 'edited_image',
-                  originalUrl: editedImageUrl,
-                  savedPath: assetFilename
-                });
-                
-                // Ajouter le chemin local
-                if (!taskResult.outputs.savedEditedImagePaths) {
-                  taskResult.outputs.savedEditedImagePaths = [];
-                }
-                taskResult.outputs.savedEditedImagePaths.push(assetFilename);
-              } catch (error) {
-                console.warn(`⚠️ Impossible de télécharger l'image éditée ${j + 1} de ${taskResult.type}:`, error.message);
-              }
-            }
-          }
-        }
-        
-        // Image éditée principale
-        if (taskResult.outputs.edited_image && typeof taskResult.outputs.edited_image === 'string') {
-          try {
-            const assetFilename = `${operationId}_task_${taskResult.type}_edited_${i + 1}.jpg`;
-            const assetPath = path.join(workflowDir, assetFilename);
-            await downloadImageToPath(taskResult.outputs.edited_image, assetPath);
-            downloadedAssets.push({
-              taskId: taskResult.type,
-              type: 'edited_image',
-              originalUrl: taskResult.outputs.edited_image,
-              savedPath: assetFilename
-            });
-            
-            // Mettre à jour avec le chemin local
-            taskResult.outputs.savedEditedImagePath = assetFilename;
-          } catch (error) {
-            console.warn(`⚠️ Impossible de télécharger l'image éditée de ${taskResult.type}:`, error.message);
-          }
-        }
-        
         // Vidéos générées
         if (taskResult.outputs.video && typeof taskResult.outputs.video === 'string') {
           try {
             const assetFilename = `${operationId}_task_${taskResult.type}_${i + 1}.mp4`;
             const assetPath = path.join(workflowDir, assetFilename);
-            await downloadImageToPath(taskResult.outputs.video, assetPath);
+            await downloadAndSaveResultCustom(taskResult.outputs.video, operationId, assetFilename);
             downloadedAssets.push({
               taskId: taskResult.type,
               type: 'video',
@@ -586,4 +512,14 @@ async function downloadAndSaveResultCustom(url, operationId, filename) {
   }
 }
 
-// Toutes les fonctions sont exportées individuellement avec 'export function/async function'
+export {
+  generateOperationId,
+  initializeStorage,
+  saveInputImage,
+  saveOutputFile,
+  saveOperationMetadata,
+  getOperationMetadata,
+  listOperations,
+  downloadAndSaveResult,
+  saveCompleteOperation
+};
