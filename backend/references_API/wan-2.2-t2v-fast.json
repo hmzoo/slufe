@@ -1,0 +1,447 @@
+{
+    "model": {
+        "name": "wan-video/wan-2.2-t2v-fast",
+        "full_identifier": "wan-video/wan-2.2-t2v-fast",
+        "description": "Modèle WAN 2.2 pour la génération de vidéos à partir de texte (text-to-video) avec mode rapide",
+        "url": "https://replicate.com/wan-video/wan-2.2-t2v-fast",
+        "version": "latest",
+        "usage": "Génération de vidéos à partir de descriptions textuelles, création de contenu vidéo sans image de départ",
+        "capabilities": [
+            "Génération de vidéos à partir de texte uniquement (text-to-video)",
+            "Support de deux ratios d'aspect (16:9 et 9:16)",
+            "Interpolation automatique à 30 FPS",
+            "Résolutions 480p et 720p disponibles",
+            "Support LoRA pour transformateurs",
+            "Optimisation automatique du prompt (traduction en chinois)",
+            "Contrôle précis du mouvement (sample_shift)",
+            "Mode rapide optimisé"
+        ]
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "prompt"
+        ],
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "x-order": 0,
+                "required": true,
+                "description": "Prompt for video generation. Describe the scene, action, and camera movement.",
+                "example": "A sports car is driving very fast along a beach at sunset, dynamic camera following the car"
+            },
+            "optimize_prompt": {
+                "type": "boolean",
+                "title": "Optimize Prompt",
+                "default": false,
+                "x-order": 1,
+                "description": "Translate prompt to Chinese before generation. Can improve results for certain types of content.",
+                "note": "Le modèle est entraîné principalement sur données chinoises"
+            },
+            "num_frames": {
+                "type": "integer",
+                "title": "Num Frames",
+                "default": 81,
+                "minimum": 81,
+                "maximum": 121,
+                "x-order": 2,
+                "description": "Number of video frames. 81 frames give the best results",
+                "note": "81 frames recommandé pour meilleur équilibre"
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "enum": [
+                    "16:9",
+                    "9:16"
+                ],
+                "title": "aspect_ratio",
+                "default": "16:9",
+                "x-order": 3,
+                "description": "Aspect ratio of video. 16:9 for landscape (832x480px), 9:16 for portrait/vertical (480x832px)"
+            },
+            "resolution": {
+                "type": "string",
+                "enum": [
+                    "480p",
+                    "720p"
+                ],
+                "title": "resolution",
+                "default": "480p",
+                "x-order": 4,
+                "description": "Resolution of video. 480p = faster/cheaper, 720p = better quality",
+                "note": "Combiné avec aspect_ratio pour dimensions finales"
+            },
+            "frames_per_second": {
+                "type": "integer",
+                "title": "Frames Per Second",
+                "default": 16,
+                "minimum": 5,
+                "maximum": 30,
+                "x-order": 5,
+                "description": "Frames per second. Note that the pricing of this model is based on the video duration at 16 fps",
+                "note": "16 fps = tarification de base"
+            },
+            "interpolate_output": {
+                "type": "boolean",
+                "title": "Interpolate Output",
+                "default": true,
+                "x-order": 6,
+                "description": "Interpolate the generated video to 30 FPS using ffmpeg",
+                "note": "Qualité améliorée sans coût supplémentaire"
+            },
+            "go_fast": {
+                "type": "boolean",
+                "title": "Go Fast",
+                "default": true,
+                "x-order": 7,
+                "description": "Go fast mode - enables optimizations for faster generation"
+            },
+            "sample_shift": {
+                "type": "number",
+                "title": "Sample Shift",
+                "default": 12,
+                "minimum": 1,
+                "maximum": 20,
+                "x-order": 8,
+                "description": "Sample shift factor. Controls the intensity of motion and changes in the video.",
+                "note": "Valeurs plus élevées = mouvements plus dynamiques"
+            },
+            "seed": {
+                "type": "integer",
+                "title": "Seed",
+                "x-order": 9,
+                "nullable": true,
+                "description": "Random seed. Leave blank for random, set for reproducible generation"
+            },
+            "disable_safety_checker": {
+                "type": "boolean",
+                "title": "Disable Safety Checker",
+                "default": false,
+                "x-order": 10,
+                "description": "Disable safety checker for generated video."
+            },
+            "lora_weights_transformer": {
+                "type": "string",
+                "title": "Lora Weights Transformer",
+                "x-order": 11,
+                "nullable": true,
+                "description": "Load LoRA weights for transformer. Supports .safetensors URLs",
+                "example": "https://huggingface.co/Viktor1717/scandinavian-interior-style1/resolve/main/my_first_flux_lora_v1.safetensors"
+            },
+            "lora_scale_transformer": {
+                "type": "number",
+                "title": "Lora Scale Transformer",
+                "default": 1,
+                "x-order": 12,
+                "description": "Determines how strongly the transformer LoRA should be applied. 0 = no effect, 1 = full effect"
+            },
+            "lora_weights_transformer_2": {
+                "type": "string",
+                "title": "Lora Weights Transformer 2",
+                "x-order": 13,
+                "nullable": true,
+                "description": "Load LoRA weights for transformer_2. Can be different from transformer LoRA."
+            },
+            "lora_scale_transformer_2": {
+                "type": "number",
+                "title": "Lora Scale Transformer 2",
+                "default": 1,
+                "x-order": 14,
+                "description": "Determines how strongly the transformer_2 LoRA should be applied."
+            }
+        }
+    },
+    "output": {
+        "type": "string",
+        "title": "Output",
+        "format": "uri",
+        "description": "URL de la vidéo générée (MP4)",
+        "example": "https://replicate.delivery/.../output.mp4",
+        "note": "Objet avec méthode .url() pour accéder à l'URL"
+    },
+    "code_example": {
+        "javascript": {
+            "basic": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'A sports car driving fast along a beach at sunset',\n      go_fast: true,\n      num_frames: 81,\n      resolution: '480p',\n      aspect_ratio: '16:9'\n    }\n  }\n);\n\n// Accéder à l'URL\nconsole.log(output.url());",
+            "advanced": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'A majestic dragon flying through clouds at sunrise, cinematic aerial shot, dynamic camera movement',\n      optimize_prompt: true,  // Optimisation automatique\n      num_frames: 81,\n      resolution: '720p',\n      aspect_ratio: '16:9',\n      sample_shift: 15,  // Mouvement dynamique\n      frames_per_second: 24,  // Cinématique\n      interpolate_output: true\n    }\n  }\n);",
+            "vertical_video": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'Person walking through a busy city street, vertical shot for social media',\n      aspect_ratio: '9:16',  // Format portrait\n      resolution: '480p',\n      num_frames: 81,\n      go_fast: true\n    }\n  }\n);",
+            "save_to_disk": "import fs from 'fs';\n\nconst output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  { input }\n);\n\n// Sauvegarder la vidéo\nfs.writeFile('generated-video.mp4', output);\nconsole.log('Video saved as generated-video.mp4');",
+            "with_seed": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'Sunset over mountains with birds flying',\n      seed: 42,  // Résultat reproductible\n      num_frames: 81,\n      resolution: '480p',\n      aspect_ratio: '16:9'\n    }\n  }\n);",
+            "with_lora": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'Interior of scandinavian minimalist apartment',\n      lora_weights_transformer: 'https://huggingface.co/.../scandinavian-style.safetensors',\n      lora_scale_transformer: 0.8,\n      lora_weights_transformer_2: 'https://huggingface.co/.../smooth-motion.safetensors',\n      lora_scale_transformer_2: 0.7,\n      num_frames: 81,\n      resolution: '720p'\n    }\n  }\n);",
+            "dynamic_action": "const output = await replicate.run(\n  'wan-video/wan-2.2-t2v-fast',\n  {\n    input: {\n      prompt: 'Skateboard trick in slow motion at skatepark',\n      sample_shift: 18,  // Mouvement très dynamique\n      num_frames: 121,   // Plus long pour slow-mo\n      frames_per_second: 24,\n      interpolate_output: true,\n      resolution: '720p'\n    }\n  }\n);"
+        }
+    },
+    "parameter_guides": {
+        "aspect_ratio": {
+            "16:9": "Landscape - Parfait pour YouTube, bannières web, TV (832×480 en 480p, 1280×720 en 720p)",
+            "9:16": "Portrait - Parfait pour TikTok, Instagram Stories, Snapchat (480×832 en 480p, 720×1280 en 720p)"
+        },
+        "num_frames": {
+            "81": "Recommandé - Meilleur équilibre qualité/vitesse/coût (~5 secondes à 16 fps)",
+            "121": "Plus long - Animations plus complexes ou ralentis (~7.5 secondes à 16 fps)",
+            "formula": "Durée = num_frames / frames_per_second"
+        },
+        "resolution": {
+            "480p": "Plus rapide, coût moindre, qualité acceptable pour web/social",
+            "720p": "Meilleure qualité, plus lent, plus cher, recommandé pour production",
+            "recommendation": "480p pour tests, 720p pour contenu final"
+        },
+        "frames_per_second": {
+            "16": "Base - Tarification standard, fluidité acceptable",
+            "24": "Cinématique - Standard film, look professionnel",
+            "30": "Maximum - Très fluide, parfait pour action rapide",
+            "pricing_note": "Tarification basée sur durée à 16 fps"
+        },
+        "sample_shift": {
+            "1-8": "Mouvements subtils, scènes calmes",
+            "9-14": "Mouvements modérés (défaut: 12)",
+            "15-20": "Mouvements dynamiques, action rapide",
+            "recommendation": "12 pour scènes standard, 15-18 pour action"
+        },
+        "optimize_prompt": {
+            "false": "Utilise le prompt tel quel (recommandé pour prompts anglais détaillés)",
+            "true": "Traduit en chinois et optimise (peut améliorer certains types de contenu)",
+            "note": "Le modèle est entraîné principalement sur données chinoises"
+        }
+    },
+    "workflows": {
+        "youtube_content": {
+            "description": "Contenu horizontal pour YouTube ou web",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "720p",
+                "num_frames": 81,
+                "frames_per_second": 24,
+                "interpolate_output": true,
+                "sample_shift": 12
+            }
+        },
+        "social_media_vertical": {
+            "description": "Stories et contenus verticaux (TikTok, Instagram, Snapchat)",
+            "settings": {
+                "aspect_ratio": "9:16",
+                "resolution": "480p",
+                "num_frames": 81,
+                "frames_per_second": 16,
+                "interpolate_output": true,
+                "go_fast": true
+            }
+        },
+        "cinematic_shot": {
+            "description": "Plan cinématographique de haute qualité",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "720p",
+                "num_frames": 81,
+                "frames_per_second": 24,
+                "sample_shift": 12,
+                "go_fast": false,
+                "interpolate_output": true
+            }
+        },
+        "dynamic_action": {
+            "description": "Scènes d'action dynamiques",
+            "settings": {
+                "num_frames": 121,
+                "sample_shift": 18,
+                "frames_per_second": 30,
+                "resolution": "720p",
+                "interpolate_output": false
+            }
+        },
+        "quick_preview": {
+            "description": "Aperçu rapide pour tests",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "480p",
+                "num_frames": 81,
+                "frames_per_second": 16,
+                "go_fast": true,
+                "interpolate_output": false
+            }
+        }
+    },
+    "best_practices": [
+        {
+            "topic": "Prompt Quality",
+            "recommendation": "Soyez descriptif: scène, action, mouvement de caméra, style. Ex: 'A [subject] [action] in [location], [camera movement], [style/mood]'",
+            "example": "A red sports car racing along a coastal highway at sunset, dynamic tracking shot, cinematic lighting"
+        },
+        {
+            "topic": "Optimize Prompt",
+            "recommendation": "Testez avec et sans optimize_prompt. Activez pour contenu abstrait ou artistique, désactivez pour prompts anglais très détaillés.",
+            "note": "La traduction peut parfois perdre des nuances"
+        },
+        {
+            "topic": "Aspect Ratio Choice",
+            "recommendation": "16:9 pour YouTube/web/TV, 9:16 pour réseaux sociaux verticaux (TikTok, Stories)",
+            "planning": "Choisissez le ratio avant de générer - impossible à changer après"
+        },
+        {
+            "topic": "Resolution Strategy",
+            "recommendation": "Itérez en 480p, produisez en 720p. 480p suffit pour réseaux sociaux.",
+            "cost_optimization": "720p coûte ~2x plus que 480p"
+        },
+        {
+            "topic": "Frame Count Calculation",
+            "recommendation": "Calculez la durée: frames ÷ fps. Ex: 81 frames ÷ 16 fps = 5 secondes",
+            "tip": "Pour 10 secondes: 160 frames à 16 fps (mais max = 121 frames)"
+        },
+        {
+            "topic": "Sample Shift Selection",
+            "recommendation": "Scènes calmes: 8-10, Standard: 12, Action: 15-18, Action intense: 18-20",
+            "experimentation": "Commencez à 12 et ajustez selon le résultat"
+        },
+        {
+            "topic": "FPS and Interpolation",
+            "recommendation": "16 fps + interpolate_output=true → 30 fps final pour excellent compromis coût/qualité",
+            "advantage": "Interpolation améliore la fluidité sans augmenter le coût"
+        },
+        {
+            "topic": "LoRA Usage",
+            "recommendation": "LoRAs séparés pour transformer et transformer_2. Commencez scale à 0.7-0.8 et ajustez.",
+            "testing": "Testez chaque LoRA individuellement avant de les combiner"
+        },
+        {
+            "topic": "Reproducibility",
+            "recommendation": "Utilisez seed fixe pour tests A/B et comparaisons. Notez les seeds des bons résultats.",
+            "workflow": "Random → Trouvez bon résultat → Notez seed → Variations avec seed fixe"
+        },
+        {
+            "topic": "Camera Movement Description",
+            "recommendation": "Spécifiez le mouvement: 'static shot', 'slow pan', 'tracking shot', 'dolly zoom', 'aerial view'",
+            "impact": "Le mouvement de caméra influence fortement le résultat"
+        }
+    ],
+    "use_cases": {
+        "product_advertisement": {
+            "description": "Publicité produit dynamique",
+            "prompt_template": "Professional product showcase of [product], rotating 360 degrees, studio lighting, clean background",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "720p",
+                "num_frames": 81,
+                "sample_shift": 10
+            }
+        },
+        "social_media_hook": {
+            "description": "Accroche pour réseaux sociaux",
+            "prompt_template": "[Action shot] with dynamic movement, eye-catching visuals, vibrant colors",
+            "settings": {
+                "aspect_ratio": "9:16",
+                "resolution": "480p",
+                "num_frames": 81,
+                "sample_shift": 15,
+                "go_fast": true
+            }
+        },
+        "nature_scene": {
+            "description": "Scène naturelle paisible",
+            "prompt_template": "Serene [nature scene] at [time of day], gentle camera movement, cinematic atmosphere",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "720p",
+                "num_frames": 81,
+                "sample_shift": 8,
+                "frames_per_second": 24
+            }
+        },
+        "action_sequence": {
+            "description": "Séquence d'action dynamique",
+            "prompt_template": "[Subject] performing [action], fast-paced, dynamic camera tracking, dramatic lighting",
+            "settings": {
+                "num_frames": 121,
+                "resolution": "720p",
+                "sample_shift": 18,
+                "frames_per_second": 30
+            }
+        },
+        "architectural_showcase": {
+            "description": "Présentation architecturale",
+            "prompt_template": "Modern [building/interior], slow camera flythrough, natural lighting, professional architecture visualization",
+            "settings": {
+                "aspect_ratio": "16:9",
+                "resolution": "720p",
+                "num_frames": 81,
+                "sample_shift": 10,
+                "frames_per_second": 24
+            }
+        },
+        "abstract_art": {
+            "description": "Art abstrait animé",
+            "prompt_template": "Abstract [concept], flowing motion, vibrant colors, artistic style",
+            "settings": {
+                "optimize_prompt": true,
+                "resolution": "720p",
+                "sample_shift": 14,
+                "num_frames": 81
+            }
+        }
+    },
+    "prompt_templates": {
+        "basic_structure": "[Subject] [action] in [location], [camera movement], [style/mood]",
+        "with_details": "[Subject] [action] in [location] at [time], [camera movement], [lighting], [atmosphere], [style]",
+        "examples": [
+            "A white cat sitting on a windowsill watching birds outside, slow push in, warm morning light, cozy atmosphere",
+            "Futuristic city skyline at night, slow pan across buildings, neon lights, cyberpunk aesthetic, cinematic",
+            "Chef preparing a gourmet dish in kitchen, close-up shot, dynamic movement, professional lighting, commercial style",
+            "Ocean waves crashing on rocky shore at sunset, aerial drone shot descending, golden hour, dramatic and peaceful"
+        ]
+    },
+    "pricing_considerations": [
+        "Tarification basée sur durée vidéo à 16 fps",
+        "720p coûte environ 2x plus cher que 480p",
+        "Plus de frames = vidéo plus longue = coût plus élevé",
+        "FPS > 16 augmente le coût proportionnellement",
+        "interpolate_output n'augmente PAS le coût (post-traitement)",
+        "LoRA weights n'affectent pas directement le coût",
+        "optimize_prompt n'affecte pas le coût"
+    ],
+    "differences_from_i2v": {
+        "input": "T2V = texte uniquement, I2V = image requise",
+        "control": "T2V = moins de contrôle sur composition initiale",
+        "creativity": "T2V = plus créatif/imprévisible",
+        "consistency": "I2V = plus cohérent avec image de départ",
+        "use_cases": "T2V = création from scratch, I2V = animation d'existant",
+        "aspect_ratio": "T2V = choix 16:9 ou 9:16, I2V = suit l'image"
+    },
+    "limitations": [
+        "Pas d'image de référence (pour cela, utiliser i2v-fast)",
+        "Durée max: 121 frames (~7.5 secondes à 16 fps)",
+        "Deux aspect ratios uniquement (16:9 et 9:16)",
+        "Contrôle moins précis de la composition qu'avec i2v",
+        "Safety checker peut bloquer certaines générations",
+        "Vidéos hébergées temporairement - télécharger pour persistance",
+        "LoRA weights doivent être .safetensors publics"
+    ],
+    "technical_notes": [
+        "Modèle entraîné principalement sur données chinoises",
+        "optimize_prompt traduit vers le chinois (langue native du modèle)",
+        "Utilise architecture double transformateur (HIGH et LOW)",
+        "LoRAs peuvent être appliqués séparément aux transformateurs",
+        "interpolate_output utilise ffmpeg pour frames supplémentaires",
+        "go_fast active optimisations sans perte majeure de qualité",
+        "sample_shift contrôle l'amplitude du débruitage",
+        "16:9 @ 480p = 832×480px, 16:9 @ 720p = 1280×720px",
+        "9:16 @ 480p = 480×832px, 9:16 @ 720p = 720×1280px"
+    ],
+    "notes": [
+        "🎬 Génération vidéo pure text-to-video (pas d'image requise)",
+        "📐 Deux ratios: 16:9 (landscape) et 9:16 (portrait)",
+        "⚡ Mode go_fast activé par défaut",
+        "🎯 81 frames = optimal (recommandé)",
+        "📺 480p pour web/social, 720p pour production",
+        "🎞️ 16 fps base + interpolation → 30 fps fluide",
+        "🌏 optimize_prompt traduit en chinois (modèle natif)",
+        "🎨 Support double LoRA (transformer + transformer_2)",
+        "💾 Output = objet avec méthode .url()",
+        "📦 Sauvegarder avec fs.writeFile()",
+        "🎲 Seed pour reproductibilité",
+        "⏱️ Durée = num_frames / frames_per_second",
+        "💰 Tarification basée sur durée à 16 fps",
+        "🔧 sample_shift = 12 par défaut (optimal)",
+        "✨ interpolate_output = qualité gratuite",
+        "🎥 Décrivez toujours le mouvement de caméra"
+    ]
+}

@@ -1,0 +1,372 @@
+{
+    "model": {
+        "name": "wan-video/wan-2.2-i2v-fast",
+        "full_identifier": "wan-video/wan-2.2-i2v-fast",
+        "description": "Modèle WAN 2.2 pour la génération de vidéos à partir d'images (image-to-video) avec mode rapide",
+        "url": "https://replicate.com/wan-video/wan-2.2-i2v-fast",
+        "version": "latest",
+        "usage": "Génération de vidéos à partir d'images, animation d'images statiques, création de séquences vidéo",
+        "capabilities": [
+            "Génération de vidéos à partir d'une image (image-to-video)",
+            "Support de transitions avec image de fin (last_image)",
+            "Interpolation automatique à 30 FPS",
+            "Résolutions 480p et 720p disponibles",
+            "Support LoRA pour transformateurs",
+            "Contrôle précis du mouvement (sample_shift)",
+            "Mode rapide optimisé"
+        ]
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "prompt",
+            "image"
+        ],
+        "properties": {
+            "image": {
+                "type": "string",
+                "title": "Image",
+                "format": "uri",
+                "required": true,
+                "description": "Input image to generate video from. Starting frame of the video.",
+                "example": "https://example.com/start-frame.jpg"
+            },
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "required": true,
+                "description": "Prompt for video generation. Describe the motion and scene you want to create.",
+                "example": "Close-up shot of an elderly sailor, camera slowly pushes in, capturing peaceful moment"
+            },
+            "last_image": {
+                "type": "string",
+                "title": "Last Image",
+                "format": "uri",
+                "nullable": true,
+                "description": "Optional last image to condition the video generation. If provided, creates smoother transitions between frames.",
+                "note": "Permet de créer une transition fluide vers une image de fin spécifique"
+            },
+            "num_frames": {
+                "type": "integer",
+                "title": "Num Frames",
+                "default": 81,
+                "minimum": 81,
+                "maximum": 121,
+                "description": "Number of video frames. 81 frames give the best results",
+                "note": "81 frames recommandé pour meilleur équilibre qualité/vitesse"
+            },
+            "resolution": {
+                "type": "string",
+                "enum": [
+                    "480p",
+                    "720p"
+                ],
+                "title": "resolution",
+                "default": "480p",
+                "x-order": 4,
+                "description": "Resolution of video. 480p = 832x480px (16:9) or 480x832px (9:16), 720p = higher quality",
+                "note": "480p plus rapide, 720p meilleure qualité"
+            },
+            "frames_per_second": {
+                "type": "integer",
+                "title": "Frames Per Second",
+                "default": 16,
+                "minimum": 5,
+                "maximum": 30,
+                "description": "Frames per second. Note that the pricing of this model is based on the video duration at 16 fps",
+                "note": "16 fps = tarification de base, 30 fps = plus fluide mais plus cher"
+            },
+            "interpolate_output": {
+                "type": "boolean",
+                "title": "Interpolate Output",
+                "default": true,
+                "description": "Interpolate the generated video to 30 FPS using ffmpeg",
+                "note": "Active l'interpolation automatique pour une vidéo plus fluide"
+            },
+            "go_fast": {
+                "type": "boolean",
+                "title": "Go Fast",
+                "default": true,
+                "description": "Go fast mode - enables optimizations for faster generation"
+            },
+            "sample_shift": {
+                "type": "number",
+                "title": "Sample Shift",
+                "default": 12,
+                "minimum": 1,
+                "maximum": 20,
+                "description": "Sample shift factor. Controls the intensity of motion and changes in the video.",
+                "note": "Valeurs plus élevées = mouvements plus prononcés"
+            },
+            "seed": {
+                "type": "integer",
+                "title": "Seed",
+                "nullable": true,
+                "description": "Random seed. Leave blank for random, set for reproducible generation"
+            },
+            "lora_weights_transformer": {
+                "type": "string",
+                "title": "Lora Weights Transformer",
+                "nullable": true,
+                "description": "Load LoRA weights for the HIGH transformer. Supports .safetensors URLs",
+                "example": "https://huggingface.co/TheRaf7/instagirl-v2/resolve/main/Instagirlv2.0_hinoise.safetensors"
+            },
+            "lora_scale_transformer": {
+                "type": "number",
+                "title": "Lora Scale Transformer",
+                "default": 1,
+                "description": "Determines how strongly the transformer LoRA should be applied. 0 = no effect, 1 = full effect"
+            },
+            "lora_weights_transformer_2": {
+                "type": "string",
+                "title": "Lora Weights Transformer 2",
+                "nullable": true,
+                "description": "Load LoRA weights for the LOW transformer_2. Can be different from transformer LoRA.",
+                "example": "https://huggingface.co/TheRaf7/instagirl-v2/resolve/main/Instagirlv2.0_lownoise.safetensors"
+            },
+            "lora_scale_transformer_2": {
+                "type": "number",
+                "title": "Lora Scale Transformer 2",
+                "default": 1,
+                "description": "Determines how strongly the transformer_2 LoRA should be applied."
+            },
+            "disable_safety_checker": {
+                "type": "boolean",
+                "title": "Disable Safety Checker",
+                "default": false,
+                "description": "Disable safety checker for generated video."
+            }
+        }
+    },
+    "output": {
+        "type": "string",
+        "title": "Output",
+        "format": "uri",
+        "description": "URL de la vidéo générée (MP4)",
+        "example": "https://replicate.delivery/.../output.mp4",
+        "note": "Objet avec méthode .url() pour accéder à l'URL"
+    },
+    "code_example": {
+        "javascript": {
+            "basic": "const output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  {\n    input: {\n      image: 'https://example.com/start-frame.jpg',\n      prompt: 'Camera slowly zooms in, capturing the peaceful scene',\n      go_fast: true,\n      num_frames: 81,\n      resolution: '480p'\n    }\n  }\n);\n\n// Accéder à l'URL\nconsole.log(output.url());",
+            "advanced": "const output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  {\n    input: {\n      image: 'https://example.com/sailor.jpg',\n      prompt: 'Close-up shot of an elderly sailor wearing a yellow raincoat, seated on the deck of a catamaran, slowly puffing on a pipe. The warm glow of the setting sun bathes the scene, with gentle waves lapping against the hull.',\n      go_fast: true,\n      num_frames: 81,\n      resolution: '720p',\n      sample_shift: 12,\n      frames_per_second: 16,\n      interpolate_output: true\n    }\n  }\n);",
+            "with_last_image": "const output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  {\n    input: {\n      image: 'https://example.com/start.jpg',\n      last_image: 'https://example.com/end.jpg',\n      prompt: 'Smooth transition from start to end scene',\n      num_frames: 121,  // Plus de frames pour transition\n      resolution: '480p'\n    }\n  }\n);",
+            "save_to_disk": "import fs from 'fs';\n\nconst output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  { input }\n);\n\n// Sauvegarder la vidéo\nfs.writeFile('output-video.mp4', output);\nconsole.log('Video saved as output-video.mp4');",
+            "with_seed": "const output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  {\n    input: {\n      image: 'https://example.com/frame.jpg',\n      prompt: 'Gentle camera movement revealing the landscape',\n      seed: 42,  // Résultat reproductible\n      num_frames: 81,\n      resolution: '480p'\n    }\n  }\n);",
+            "with_lora": "const output = await replicate.run(\n  'wan-video/wan-2.2-i2v-fast',\n  {\n    input: {\n      image: 'https://example.com/portrait.jpg',\n      prompt: 'Portrait with subtle movements and expressions',\n      lora_weights_transformer: 'https://huggingface.co/.../high-quality.safetensors',\n      lora_scale_transformer: 0.8,\n      lora_weights_transformer_2: 'https://huggingface.co/.../smooth-motion.safetensors',\n      lora_scale_transformer_2: 0.7,\n      num_frames: 81,\n      resolution: '720p'\n    }\n  }\n);"
+        }
+    },
+    "parameter_guides": {
+        "num_frames": {
+            "81": "Recommandé - Meilleur équilibre qualité/vitesse/coût",
+            "121": "Plus long - Transitions plus fluides, meilleure pour last_image",
+            "note": "Plus de frames = vidéo plus longue et plus chère"
+        },
+        "resolution": {
+            "480p": "832x480px (16:9) - Plus rapide, coût moindre, qualité correcte",
+            "720p": "1280x720px (16:9) - Meilleure qualité, plus lent, plus cher",
+            "recommendation": "480p pour tests, 720p pour production"
+        },
+        "frames_per_second": {
+            "16": "Base - Tarification standard, fluidité acceptable",
+            "20-24": "Cinématique - Meilleure fluidité",
+            "30": "Maximum - Très fluide mais coût élevé",
+            "note": "Tarification basée sur durée à 16 fps"
+        },
+        "sample_shift": {
+            "1-5": "Mouvements subtils",
+            "6-12": "Mouvements modérés (recommandé: 12)",
+            "13-20": "Mouvements prononcés",
+            "note": "12 = valeur par défaut optimale"
+        },
+        "interpolate_output": {
+            "true": "Interpolation ffmpeg à 30 FPS - Vidéo plus fluide",
+            "false": "FPS natif du modèle - Plus rapide",
+            "recommendation": "Activer pour meilleure qualité visuelle"
+        }
+    },
+    "workflows": {
+        "simple_animation": {
+            "description": "Animation simple d'une image statique",
+            "required": ["image", "prompt"],
+            "recommended_settings": {
+                "num_frames": 81,
+                "resolution": "480p",
+                "go_fast": true,
+                "interpolate_output": true
+            }
+        },
+        "smooth_transition": {
+            "description": "Transition fluide entre deux images",
+            "required": ["image", "last_image", "prompt"],
+            "recommended_settings": {
+                "num_frames": 121,
+                "resolution": "720p",
+                "sample_shift": 10,
+                "interpolate_output": true
+            }
+        },
+        "cinematic_shot": {
+            "description": "Plan cinématographique de haute qualité",
+            "required": ["image", "prompt"],
+            "recommended_settings": {
+                "num_frames": 81,
+                "resolution": "720p",
+                "frames_per_second": 24,
+                "sample_shift": 12,
+                "go_fast": false,
+                "interpolate_output": true
+            }
+        },
+        "quick_preview": {
+            "description": "Aperçu rapide pour tests",
+            "required": ["image", "prompt"],
+            "recommended_settings": {
+                "num_frames": 81,
+                "resolution": "480p",
+                "frames_per_second": 16,
+                "go_fast": true,
+                "interpolate_output": false
+            }
+        }
+    },
+    "best_practices": [
+        {
+            "topic": "Prompt Quality",
+            "recommendation": "Décrivez le mouvement de caméra et l'action. Ex: 'Camera slowly pushes in', 'Gentle pan from left to right'",
+            "example": "Close-up shot of X, camera slowly zooms in, capturing Y with Z in the background"
+        },
+        {
+            "topic": "Starting Image",
+            "recommendation": "Utilisez des images haute résolution et bien cadrées. L'image de départ définit la qualité finale.",
+            "note": "Évitez les images floues ou de mauvaise qualité"
+        },
+        {
+            "topic": "Last Image Usage",
+            "recommendation": "Utilisez last_image pour transitions contrôlées. Augmentez num_frames à 121 pour transitions fluides.",
+            "use_case": "Parfait pour séquences narratives ou morphing"
+        },
+        {
+            "topic": "Frame Count",
+            "recommendation": "81 frames = 5 secondes à 16 fps. Calculez selon votre besoin: frames = durée_secondes × fps",
+            "formula": "Durée = num_frames / frames_per_second"
+        },
+        {
+            "topic": "Resolution Choice",
+            "recommendation": "Testez en 480p, produisez en 720p. 480p suffit pour réseaux sociaux.",
+            "cost_consideration": "720p coûte ~2x plus cher que 480p"
+        },
+        {
+            "topic": "Sample Shift",
+            "recommendation": "Commencez avec 12 (défaut). Réduisez à 8-10 pour mouvements doux, augmentez à 15-18 pour action dynamique.",
+            "experimentation": "Testez différentes valeurs selon le type de contenu"
+        },
+        {
+            "topic": "FPS and Interpolation",
+            "recommendation": "16 fps + interpolate_output=true donne 30 fps final pour bon compromis coût/qualité",
+            "note": "Tarification basée sur 16 fps, donc interpolation = qualité gratuite"
+        },
+        {
+            "topic": "LoRA Usage",
+            "recommendation": "LoRAs séparés pour HIGH (transformer) et LOW (transformer_2). Testez scales entre 0.5-1.0",
+            "advanced": "Combinez LoRAs pour effets stylistiques uniques"
+        },
+        {
+            "topic": "Reproducibility",
+            "recommendation": "Utilisez seed fixe pour résultats identiques. Utile pour comparaisons A/B.",
+            "workflow": "Test sans seed → Trouvez bon résultat → Notez seed → Reproduisez"
+        }
+    ],
+    "use_cases": {
+        "product_showcase": {
+            "description": "Présentation de produits avec rotation ou zoom",
+            "settings": {
+                "num_frames": 81,
+                "resolution": "720p",
+                "sample_shift": 10,
+                "prompt": "Slow 360-degree rotation showcasing the product details"
+            }
+        },
+        "portrait_animation": {
+            "description": "Animation de portraits (sourire, clignement, etc.)",
+            "settings": {
+                "num_frames": 81,
+                "resolution": "480p",
+                "sample_shift": 8,
+                "prompt": "Subtle facial movements, gentle smile forming"
+            }
+        },
+        "landscape_pan": {
+            "description": "Panoramique de paysages",
+            "settings": {
+                "num_frames": 121,
+                "resolution": "720p",
+                "sample_shift": 12,
+                "frames_per_second": 24,
+                "prompt": "Slow pan across the landscape, revealing the scene"
+            }
+        },
+        "transition_effect": {
+            "description": "Effet de transition entre scènes",
+            "settings": {
+                "num_frames": 121,
+                "resolution": "480p",
+                "sample_shift": 15,
+                "last_image": "required",
+                "prompt": "Smooth transition with morphing elements"
+            }
+        },
+        "social_media_content": {
+            "description": "Contenu court pour réseaux sociaux",
+            "settings": {
+                "num_frames": 81,
+                "resolution": "480p",
+                "frames_per_second": 16,
+                "interpolate_output": true,
+                "prompt": "Dynamic movement catching attention"
+            }
+        }
+    },
+    "pricing_considerations": [
+        "Tarification basée sur durée vidéo à 16 fps",
+        "720p coûte environ 2x plus cher que 480p",
+        "Plus de frames = vidéo plus longue = coût plus élevé",
+        "FPS > 16 augmente le coût proportionnellement",
+        "interpolate_output n'augmente PAS le coût (traitement ffmpeg post)",
+        "LoRA weights n'affectent pas le coût directement"
+    ],
+    "limitations": [
+        "Formats d'entrée supportés: images statiques uniquement (pas de vidéo en entrée)",
+        "Durée vidéo limitée par num_frames (max 121 frames)",
+        "Safety checker peut bloquer certaines générations (désactivable)",
+        "Les vidéos sont hébergées temporairement - télécharger pour persistance",
+        "LoRA weights doivent être .safetensors depuis URL publique",
+        "Aspect ratio fixe (16:9) - pas de format personnalisé"
+    ],
+    "technical_notes": [
+        "Le modèle utilise deux transformateurs (HIGH et LOW) pour génération",
+        "LoRAs peuvent être appliqués séparément aux deux transformateurs",
+        "interpolate_output utilise ffmpeg pour interpolation de frames",
+        "go_fast active des optimisations sans perte significative de qualité",
+        "sample_shift contrôle l'amplitude du débruitage (plus = plus de mouvement)",
+        "Resolution 480p = 832×480 (16:9) ou 480×832 (9:16) selon orientation",
+        "Resolution 720p = 1280×720 (16:9) ou 720×1280 (9:16) selon orientation"
+    ],
+    "notes": [
+        "🎬 Génération vidéo à partir d'image statique",
+        "🔄 Support transition fluide avec last_image",
+        "⚡ Mode go_fast activé par défaut",
+        "📐 81 frames = meilleur compromis (recommandé)",
+        "🎯 480p pour tests, 720p pour production",
+        "🎞️ 16 fps base + interpolation → 30 fps fluide",
+        "🎨 Support double LoRA (transformer + transformer_2)",
+        "💾 Output = objet avec méthode .url()",
+        "📦 Sauvegarder avec fs.writeFile()",
+        "🎲 Seed pour reproductibilité",
+        "⏱️ Durée = num_frames / frames_per_second",
+        "💰 Tarification basée sur durée à 16 fps",
+        "🔧 sample_shift = 12 par défaut (optimal)",
+        "✨ interpolate_output = upgrade qualité gratuit"
+    ]
+}

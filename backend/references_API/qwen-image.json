@@ -1,0 +1,341 @@
+{
+    "model": {
+        "name": "qwen/qwen-image",
+        "full_identifier": "qwen/qwen-image",
+        "description": "Modèle Qwen pour la génération d'images de haute qualité à partir de texte (text-to-image) et transformation d'images (img2img)",
+        "url": "https://replicate.com/qwen/qwen-image",
+        "version": "latest",
+        "usage": "Génération d'images text-to-image, transformation img2img, support LoRA",
+        "capabilities": [
+            "Génération d'images à partir de texte (text-to-image)",
+            "Transformation d'images (img2img)",
+            "Support de LoRA weights pour styles personnalisés",
+            "Support de multiple LoRAs simultanées",
+            "Amélioration automatique de prompt",
+            "Contrôle précis de la génération (guidance, steps, strength)"
+        ]
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "prompt"
+        ],
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "required": true,
+                "description": "Prompt for generated image",
+                "example": "A majestic mountain landscape at sunset, cinematic lighting, highly detailed"
+            },
+            "negative_prompt": {
+                "type": "string",
+                "title": "Negative Prompt",
+                "default": " ",
+                "description": "Negative prompt for generated image - specify what you DON'T want",
+                "example": "blurry, low quality, distorted, ugly"
+            },
+            "image": {
+                "type": "string",
+                "title": "Image",
+                "format": "uri",
+                "nullable": true,
+                "description": "Input image for img2img pipeline",
+                "note": "Optionnel - utilisé uniquement pour img2img"
+            },
+            "strength": {
+                "type": "number",
+                "title": "Strength",
+                "default": 0.9,
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Strength for img2img pipeline. 0 = keep original, 1 = completely new image",
+                "note": "Utilisé uniquement avec image"
+            },
+            "guidance": {
+                "type": "number",
+                "title": "Guidance",
+                "default": 3,
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Guidance for generated image. Lower values can give more realistic images. Good values to try are 2, 2.5, 3 and 3.5"
+            },
+            "num_inference_steps": {
+                "type": "integer",
+                "title": "Num Inference Steps",
+                "default": 30,
+                "minimum": 1,
+                "maximum": 50,
+                "description": "Number of denoising steps. Recommended range is 28-50. Lower = faster but lower quality."
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "enum": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "3:2",
+                    "2:3"
+                ],
+                "title": "aspect_ratio",
+                "default": "16:9",
+                "x-order": 10,
+                "description": "Aspect ratio for the generated image"
+            },
+            "image_size": {
+                "type": "string",
+                "enum": [
+                    "optimize_for_quality",
+                    "optimize_for_speed"
+                ],
+                "title": "image_size",
+                "default": "optimize_for_quality",
+                "x-order": 11,
+                "description": "Image size optimization strategy"
+            },
+            "go_fast": {
+                "type": "boolean",
+                "title": "Go Fast",
+                "default": true,
+                "description": "Run faster predictions with additional optimizations."
+            },
+            "enhance_prompt": {
+                "type": "boolean",
+                "title": "Enhance Prompt",
+                "default": false,
+                "description": "Enhance the prompt with positive magic. Automatically improves your prompt."
+            },
+            "lora_weights": {
+                "type": "string",
+                "title": "Lora Weights",
+                "nullable": true,
+                "description": "Load LoRA weights. Only works with text to image pipeline. Supports .safetensors URLs, tar files, and zip files",
+                "example": "https://huggingface.co/flymy-ai/qwen-image-lora/resolve/main/pytorch_lora_weights.safetensors"
+            },
+            "lora_scale": {
+                "type": "number",
+                "title": "Lora Scale",
+                "default": 1,
+                "description": "Determines how strongly the main LoRA should be applied. 0 = no effect, 1 = full effect"
+            },
+            "extra_lora_weights": {
+                "type": "string",
+                "title": "Extra Lora Weights",
+                "nullable": true,
+                "description": "Additional LoRA weights as comma-separated URLs. Same formats as lora_weights",
+                "example": "https://url1.safetensors,https://url2.safetensors"
+            },
+            "extra_lora_scale": {
+                "type": "string",
+                "title": "Extra Lora Scale",
+                "nullable": true,
+                "description": "Scales for additional LoRAs as comma-separated floats. Must match number of extra_lora_weights",
+                "example": "0.5,0.7"
+            },
+            "seed": {
+                "type": "integer",
+                "title": "Seed",
+                "nullable": true,
+                "description": "Random seed. Set for reproducible generation"
+            },
+            "output_format": {
+                "type": "string",
+                "enum": [
+                    "webp",
+                    "jpg",
+                    "png"
+                ],
+                "title": "output_format",
+                "default": "webp",
+                "x-order": 16,
+                "description": "Format of the output images"
+            },
+            "output_quality": {
+                "type": "integer",
+                "title": "Output Quality",
+                "default": 80,
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Quality when saving the output images, from 0 to 100. Not relevant for .png outputs"
+            },
+            "disable_safety_checker": {
+                "type": "boolean",
+                "title": "Disable Safety Checker",
+                "default": false,
+                "description": "Disable safety checker for generated images."
+            }
+        }
+    },
+    "output": {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "format": "uri"
+        },
+        "title": "Output",
+        "description": "Array d'URLs pointant vers les images générées",
+        "example": [
+            "https://replicate.delivery/.../output_0.webp"
+        ],
+        "note": "Les images sont temporairement hébergées, télécharger si besoin de persistance"
+    },
+    "code_example": {
+        "javascript": {
+            "text_to_image_basic": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      prompt: 'A serene mountain landscape at golden hour',\n      guidance: 3,\n      num_inference_steps: 30\n    }\n  }\n);\n\nconsole.log(output[0].url());",
+            "text_to_image_advanced": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      prompt: 'Professional product photo of a luxury watch',\n      negative_prompt: 'blurry, low quality, distorted',\n      guidance: 4,\n      num_inference_steps: 50,\n      aspect_ratio: '1:1',\n      image_size: 'optimize_for_quality',\n      output_format: 'png',\n      output_quality: 100,\n      enhance_prompt: true\n    }\n  }\n);",
+            "img2img": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      image: 'https://example.com/input.jpg',\n      prompt: 'Transform into a watercolor painting style',\n      strength: 0.7,  // 0-1: how much to transform\n      guidance: 3.5,\n      num_inference_steps: 40\n    }\n  }\n);",
+            "with_lora": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      prompt: 'Portrait in anime style',\n      lora_weights: 'https://huggingface.co/path/to/anime-lora.safetensors',\n      lora_scale: 0.8,\n      guidance: 3,\n      num_inference_steps: 35\n    }\n  }\n);",
+            "multiple_loras": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      prompt: 'Futuristic city at night',\n      lora_weights: 'https://url/main-lora.safetensors',\n      lora_scale: 1,\n      extra_lora_weights: 'https://url/lora1.safetensors,https://url/lora2.safetensors',\n      extra_lora_scale: '0.5,0.7',\n      guidance: 4,\n      num_inference_steps: 45\n    }\n  }\n);",
+            "save_to_disk": "import { writeFile } from 'fs/promises';\n\nconst output = await replicate.run('qwen/qwen-image', { input });\n\n// Sauvegarder les fichiers\nfor (const [index, item] of Object.entries(output)) {\n  await writeFile(`output_${index}.webp`, item);\n  console.log(`Saved: output_${index}.webp`);\n}",
+            "with_seed": "const output = await replicate.run(\n  'qwen/qwen-image',\n  {\n    input: {\n      prompt: 'Beautiful sunset over the ocean',\n      seed: 42,  // Même résultat à chaque fois\n      guidance: 3,\n      num_inference_steps: 30\n    }\n  }\n);"
+        }
+    },
+    "pipelines": {
+        "text_to_image": {
+            "description": "Génération d'images à partir de texte uniquement",
+            "required_params": ["prompt"],
+            "optional_params": ["negative_prompt", "guidance", "num_inference_steps", "aspect_ratio", "enhance_prompt", "lora_weights"],
+            "note": "Pipeline par défaut si aucune image n'est fournie"
+        },
+        "img2img": {
+            "description": "Transformation d'une image existante selon un prompt",
+            "required_params": ["prompt", "image"],
+            "optional_params": ["strength", "negative_prompt", "guidance", "num_inference_steps"],
+            "note": "Activé automatiquement quand image est fourni"
+        }
+    },
+    "parameter_guides": {
+        "guidance": {
+            "range": "0-10",
+            "recommended": "2-4",
+            "low": "1-2: Plus réaliste, moins fidèle au prompt",
+            "medium": "2.5-3.5: Bon équilibre (recommandé)",
+            "high": "4-10: Plus artistique, plus fidèle au prompt"
+        },
+        "num_inference_steps": {
+            "range": "1-50",
+            "recommended": "28-50",
+            "fast": "20-30: Rapide, qualité correcte",
+            "balanced": "30-40: Bon compromis",
+            "quality": "40-50: Meilleure qualité, plus lent"
+        },
+        "strength_img2img": {
+            "range": "0-1",
+            "low": "0.1-0.3: Modifications subtiles",
+            "medium": "0.4-0.7: Transformation modérée",
+            "high": "0.8-1.0: Transformation importante"
+        },
+        "lora_scale": {
+            "range": "0-1+",
+            "subtle": "0.3-0.5: Effet subtil",
+            "balanced": "0.6-0.8: Effet équilibré",
+            "strong": "0.9-1.0: Effet complet",
+            "note": "Peut dépasser 1.0 pour effet exagéré"
+        }
+    },
+    "best_practices": [
+        {
+            "topic": "Quality vs Speed",
+            "recommendation": "Pour tests: go_fast=true + num_inference_steps=28. Pour production: go_fast=false + num_inference_steps=40-50"
+        },
+        {
+            "topic": "Prompt Enhancement",
+            "recommendation": "Activer enhance_prompt=true si votre prompt est simple. Désactiver si vous voulez un contrôle précis."
+        },
+        {
+            "topic": "Guidance Value",
+            "recommendation": "Commencez avec 3. Si trop artistique: réduire à 2-2.5. Si pas assez fidèle: augmenter à 3.5-4."
+        },
+        {
+            "topic": "Negative Prompts",
+            "recommendation": "Utilisez toujours negative_prompt pour éviter: 'blurry, low quality, distorted, ugly, deformed'"
+        },
+        {
+            "topic": "Aspect Ratios",
+            "recommendation": "1:1 pour posts sociaux, 16:9 pour bannières/vidéos, 9:16 pour stories, 4:3 pour classique"
+        },
+        {
+            "topic": "LoRA Usage",
+            "recommendation": "Commencez avec lora_scale=0.7 et ajustez. Testez avant de combiner multiple LoRAs."
+        },
+        {
+            "topic": "img2img Workflow",
+            "recommendation": "Commencez avec strength=0.5, augmentez si pas assez de changement, diminuez si trop transformé"
+        },
+        {
+            "topic": "Output Format",
+            "recommendation": "webp pour web (petit, rapide), png pour qualité max/transparence, jpg pour compatibilité universelle"
+        }
+    ],
+    "use_cases": {
+        "product_photography": {
+            "description": "Photos de produits professionnelles",
+            "settings": {
+                "guidance": 4,
+                "num_inference_steps": 50,
+                "aspect_ratio": "1:1",
+                "image_size": "optimize_for_quality",
+                "output_format": "png"
+            }
+        },
+        "concept_art": {
+            "description": "Art conceptuel et illustrations",
+            "settings": {
+                "guidance": 3.5,
+                "num_inference_steps": 40,
+                "enhance_prompt": true,
+                "aspect_ratio": "16:9"
+            }
+        },
+        "portrait_photography": {
+            "description": "Portraits réalistes",
+            "settings": {
+                "guidance": 2.5,
+                "num_inference_steps": 45,
+                "aspect_ratio": "3:4",
+                "negative_prompt": "distorted face, extra limbs, blurry"
+            }
+        },
+        "style_transfer": {
+            "description": "Appliquer un style artistique à une photo",
+            "settings": {
+                "pipeline": "img2img",
+                "strength": 0.6,
+                "guidance": 3,
+                "num_inference_steps": 35
+            }
+        },
+        "quick_iterations": {
+            "description": "Itérations rapides pour exploration",
+            "settings": {
+                "go_fast": true,
+                "num_inference_steps": 20,
+                "guidance": 3
+            }
+        }
+    },
+    "limitations": [
+        "LoRA weights fonctionnent uniquement avec text-to-image (pas img2img)",
+        "Les images sont hébergées temporairement - télécharger pour persistance",
+        "Safety checker peut bloquer certaines générations (désactivable)",
+        "output_quality n'affecte pas les PNG",
+        "Multiple LoRAs peuvent interagir de manière imprévisible - tester"
+    ],
+    "notes": [
+        "🎨 Modèle polyvalent: text-to-image ET img2img",
+        "🚀 Mode go_fast pour itérations rapides",
+        "✨ enhance_prompt améliore automatiquement vos prompts",
+        "🎯 guidance 2-4 recommandé pour meilleur équilibre",
+        "📐 7 ratios d'aspect disponibles",
+        "🔧 Support LoRA pour styles personnalisés",
+        "🔗 Support multiple LoRAs simultanées",
+        "💾 Objets retournés ont méthode .url()",
+        "📦 Utiliser writeFile() pour sauvegarder localement",
+        "🎲 Seed pour reproductibilité exacte",
+        "⚡ 28-50 steps recommandés (28=rapide, 50=qualité max)",
+        "🖼️ img2img: strength contrôle intensité transformation"
+    ]
+}

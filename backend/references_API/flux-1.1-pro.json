@@ -1,0 +1,74 @@
+{
+  "model": {
+    "name": "black-forest-labs/flux-1.1-pro",
+    "description": "Modèle FLUX 1.1 Pro - Version professionnelle avec meilleure qualité",
+    "url": "https://replicate.com/black-forest-labs/flux-1.1-pro",
+    "version": "latest",
+    "usage": "Génération d'images haute qualité (text-to-image)",
+    "cost": "Payant - plus cher que flux-schnell"
+  },
+  "input": {
+    "prompt": {
+      "type": "string",
+      "description": "Description détaillée de l'image à générer",
+      "required": true,
+      "max_length": 10000,
+      "example": "A photorealistic portrait of a cat king, cinematic lighting, 8k"
+    },
+    "aspect_ratio": {
+      "type": "string",
+      "description": "Format de l'image",
+      "default": "1:1",
+      "options": ["1:1", "16:9", "21:9", "2:3", "3:2", "4:5", "5:4", "9:16", "9:21"],
+      "example": "16:9"
+    },
+    "output_format": {
+      "type": "string",
+      "description": "Format de sortie",
+      "default": "webp",
+      "options": ["webp", "jpg", "png"],
+      "example": "png"
+    },
+    "output_quality": {
+      "type": "integer",
+      "description": "Qualité (jpg/webp)",
+      "default": 80,
+      "min": 0,
+      "max": 100,
+      "example": 95
+    },
+    "safety_tolerance": {
+      "type": "integer",
+      "description": "Tolérance du filtre de sécurité (1-5)",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "example": 2
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Seed pour reproductibilité",
+      "required": false,
+      "example": 12345
+    }
+  },
+  "output": {
+    "type": "URL",
+    "description": "URL de l'image générée (note: retourne une seule URL, pas un array)",
+    "format": "https://replicate.delivery/...",
+    "example": "https://replicate.delivery/pbxt/xyz789/output.png"
+  },
+  "code_example": {
+    "javascript": {
+      "basic": "const output = await replicate.run(\n  'black-forest-labs/flux-1.1-pro',\n  {\n    input: {\n      prompt: 'A majestic landscape',\n      aspect_ratio: '16:9',\n      output_format: 'png',\n      output_quality: 95\n    }\n  }\n);\n\n// output est une URL directe (pas un array)\nconst imageUrl = output;"
+    }
+  },
+  "notes": [
+    "Version Pro = meilleure qualité que Schnell mais plus lent et plus cher",
+    "Retourne une URL directe (pas un array comme flux-schnell)",
+    "Pas de num_outputs - génère toujours 1 seule image",
+    "Pas de guidance_scale ou num_inference_steps (paramètres optimisés)",
+    "Meilleur pour: photorealism, détails fins, cohérence",
+    "À réserver pour les générations finales/production"
+  ]
+}

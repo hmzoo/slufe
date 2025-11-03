@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+*.log
+
+# Backend
+backend/.env
+backend/uploads/
+backend/data/
+
+# Frontend
+frontend/dist/
+frontend/.quasar/

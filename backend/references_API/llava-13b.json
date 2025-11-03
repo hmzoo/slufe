@@ -1,0 +1,82 @@
+{
+    "model": {
+        "name": "yorickvp/llava-13b",
+        "version": "a0fdc44e4f2e1f20f2bb4e27846899953ac8e66c5886c5878fa1d6b73ce009e5",
+        "full_identifier": "yorickvp/llava-13b:a0fdc44e4f2e1f20f2bb4e27846899953ac8e66c5886c5878fa1d6b73ce009e5",
+        "description": "Modèle LLaVA 13B pour l'analyse et la description d'images",
+        "url": "https://replicate.com/yorickvp/llava-13b",
+        "usage": "Analyse d'images, description visuelle, vision-language"
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "image",
+            "prompt"
+        ],
+        "properties": {
+            "image": {
+                "type": "string",
+                "title": "Image",
+                "format": "uri",
+                "x-order": 0,
+                "description": "Input image"
+            },
+            "top_p": {
+                "type": "number",
+                "title": "Top P",
+                "default": 1,
+                "maximum": 1,
+                "minimum": 0,
+                "x-order": 2,
+                "description": "When decoding text, samples from the top p percentage of most likely tokens; lower to ignore less likely tokens"
+            },
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "x-order": 1,
+                "description": "Prompt to use for text generation"
+            },
+            "max_tokens": {
+                "type": "integer",
+                "title": "Max Tokens",
+                "default": 1024,
+                "minimum": 0,
+                "x-order": 4,
+                "description": "Maximum number of tokens to generate. A word is generally 2-3 tokens"
+            },
+            "temperature": {
+                "type": "number",
+                "title": "Temperature",
+                "default": 0.2,
+                "minimum": 0,
+                "x-order": 3,
+                "description": "Adjusts randomness of outputs, greater than 1 is random and 0 is deterministic"
+            }
+        }
+    },
+    "output": {
+        "type": "array",
+        "items": {
+            "type": "string"
+        },
+        "title": "Output",
+        "x-cog-array-type": "iterator",
+        "x-cog-array-display": "concatenate"
+    },
+    "code_example": {
+        "javascript": {
+            "with_url": "const output = await replicate.run(\n  'yorickvp/llava-13b:a0fdc44e4f2e1f20f2bb4e27846899953ac8e66c5886c5878fa1d6b73ce009e5',\n  {\n    input: {\n      image: 'https://example.com/cat.jpg',\n      prompt: 'Décris cette image en détail',\n      max_tokens: 512,\n      temperature: 0.2\n    }\n  }\n);",
+            "with_buffer": "const fs = require('fs');\nconst imageBuffer = fs.readFileSync('image.jpg');\nconst base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;\n\nconst output = await replicate.run(\n  'yorickvp/llava-13b:a0fdc44e4f2e1f20f2bb4e27846899953ac8e66c5886c5878fa1d6b73ce009e5',\n  {\n    input: {\n      image: base64Image,\n      prompt: 'Décris cette image',\n      max_tokens: 512\n    }\n  }\n);"
+        }
+    },
+    "notes": [
+        "⚠️ IMPORTANT: Utiliser le hash complet de version pour garantir la stabilité",
+        "Le hash assure que le modèle ne change pas entre les déploiements",
+        "Supporte les images via URL ou base64",
+        "Temperature basse (0.1-0.3) recommandée pour descriptions objectives",
+        "Peut répondre à des questions spécifiques sur l'image",
+        "Supporte le français si demandé dans le prompt",
+        "Le modèle retourne généralement un array qu'il faut joindre"
+    ]
+}

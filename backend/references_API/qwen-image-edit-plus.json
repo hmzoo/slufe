@@ -1,0 +1,204 @@
+{
+    "model": {
+        "name": "qwen/qwen-image-edit-plus",
+        "full_identifier": "qwen/qwen-image-edit-plus",
+        "description": "Modèle Qwen pour l'édition d'images avec instructions textuelles - peut combiner plusieurs images",
+        "url": "https://replicate.com/qwen/qwen-image-edit-plus",
+        "version": "latest",
+        "usage": "Édition d'images, combinaison d'images, transformation avec prompt textuel",
+        "capabilities": [
+            "Édition d'images avec instructions textuelles",
+            "Transfert de pose entre images",
+            "Combinaison de plusieurs images de référence",
+            "Support de multiples formats d'entrée et sortie"
+        ]
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "prompt",
+            "image"
+        ],
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "x-order": 0,
+                "required": true,
+                "description": "Text instruction on how to edit the given image.",
+                "example": "The woman in image 2 adopts the pose from image 1"
+            },
+            "image": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "title": "Image",
+                "x-order": 1,
+                "required": true,
+                "description": "Images to use as reference. Must be jpeg, png, gif, or webp.",
+                "example": [
+                    "https://example.com/image1.png",
+                    "https://example.com/image2.jpeg"
+                ],
+                "note": "Peut accepter plusieurs images (array)"
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "enum": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:3",
+                    "3:4",
+                    "match_input_image"
+                ],
+                "title": "aspect_ratio",
+                "default": "match_input_image",
+                "x-order": 2,
+                "description": "Aspect ratio for the generated image"
+            },
+            "go_fast": {
+                "type": "boolean",
+                "title": "Go Fast",
+                "default": true,
+                "x-order": 3,
+                "description": "Run faster predictions with additional optimizations."
+            },
+            "seed": {
+                "type": "integer",
+                "title": "Seed",
+                "x-order": 4,
+                "nullable": true,
+                "description": "Random seed. Set for reproducible generation"
+            },
+            "output_format": {
+                "type": "string",
+                "enum": [
+                    "webp",
+                    "jpg",
+                    "png"
+                ],
+                "title": "output_format",
+                "default": "webp",
+                "x-order": 5,
+                "description": "Format of the output images"
+            },
+            "output_quality": {
+                "type": "integer",
+                "title": "Output Quality",
+                "default": 95,
+                "minimum": 0,
+                "maximum": 100,
+                "x-order": 6,
+                "description": "Quality when saving the output images, from 0 to 100. 100 is best quality, 0 is lowest quality. Not relevant for .png outputs"
+            },
+            "disable_safety_checker": {
+                "type": "boolean",
+                "title": "Disable Safety Checker",
+                "default": false,
+                "x-order": 7,
+                "description": "Disable safety checker for generated images."
+            }
+        }
+    },
+    "output": {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "format": "uri"
+        },
+        "title": "Output",
+        "description": "Array d'URLs pointant vers les images générées",
+        "example": [
+            "https://replicate.delivery/.../output_0.webp"
+        ],
+        "note": "Les images sont temporairement hébergées, télécharger si besoin de persistance"
+    },
+    "code_example": {
+        "javascript": {
+            "basic_single_image": "const output = await replicate.run(\n  'qwen/qwen-image-edit-plus',\n  {\n    input: {\n      image: ['https://example.com/photo.jpg'],\n      prompt: 'Change the background to a beach sunset',\n      aspect_ratio: 'match_input_image',\n      output_format: 'png',\n      output_quality: 95\n    }\n  }\n);\n\n// Accéder à l'URL de l'image\nconst imageUrl = output[0].url();\nconsole.log(imageUrl);",
+            "multiple_images_pose_transfer": "const output = await replicate.run(\n  'qwen/qwen-image-edit-plus',\n  {\n    input: {\n      image: [\n        'https://example.com/pose-reference.png',\n        'https://example.com/person.jpeg'\n      ],\n      prompt: 'The person in image 2 adopts the pose from image 1',\n      go_fast: true,\n      aspect_ratio: '16:9',\n      output_format: 'webp'\n    }\n  }\n);",
+            "save_to_disk": "import { writeFile } from 'fs/promises';\n\nconst output = await replicate.run(\n  'qwen/qwen-image-edit-plus',\n  { input }\n);\n\n// Sauvegarder les fichiers\nfor (const [index, item] of Object.entries(output)) {\n  await writeFile(`output_${index}.webp`, item);\n  console.log(`Saved: output_${index}.webp`);\n}",
+            "with_seed_for_reproducibility": "const output = await replicate.run(\n  'qwen/qwen-image-edit-plus',\n  {\n    input: {\n      image: ['https://example.com/photo.jpg'],\n      prompt: 'Make it look like a painting',\n      seed: 42,\n      go_fast: false,  // Meilleure qualité\n      output_quality: 100\n    }\n  }\n);"
+        }
+    },
+    "use_cases": {
+        "pose_transfer": {
+            "description": "Transférer la pose d'une image à une personne dans une autre image",
+            "example_prompt": "The person in image 2 adopts the pose from image 1",
+            "images_needed": 2
+        },
+        "style_transfer": {
+            "description": "Appliquer le style d'une image à une autre",
+            "example_prompt": "Apply the artistic style from image 1 to image 2",
+            "images_needed": 2
+        },
+        "background_replacement": {
+            "description": "Remplacer l'arrière-plan d'une image",
+            "example_prompt": "Replace the background with a mountain landscape",
+            "images_needed": 1
+        },
+        "object_modification": {
+            "description": "Modifier des objets ou éléments dans l'image",
+            "example_prompt": "Change the car color to red",
+            "images_needed": 1
+        },
+        "image_fusion": {
+            "description": "Fusionner des éléments de plusieurs images",
+            "example_prompt": "Combine the lighting from image 1 with the subject from image 2",
+            "images_needed": 2
+        }
+    },
+    "best_practices": [
+        {
+            "topic": "Prompt Quality",
+            "recommendation": "Soyez précis et descriptif dans vos instructions",
+            "example": "Au lieu de 'change it', utilisez 'Change the background to a sunset beach scene with palm trees'"
+        },
+        {
+            "topic": "Multiple Images",
+            "recommendation": "Référencez explicitement les images par leur numéro (image 1, image 2)",
+            "example": "The woman in image 2 adopts the pose from image 1"
+        },
+        {
+            "topic": "Performance",
+            "recommendation": "Utilisez go_fast: true pour les tests, false pour la production",
+            "note": "go_fast sacrifie un peu de qualité pour plus de vitesse"
+        },
+        {
+            "topic": "Aspect Ratio",
+            "recommendation": "Utilisez 'match_input_image' pour conserver les proportions originales",
+            "alternative": "Spécifiez un ratio pour adapter l'image (16:9 pour vidéos, 1:1 pour carrés)"
+        },
+        {
+            "topic": "Output Format",
+            "recommendation": "webp pour web (meilleur compromis taille/qualité), png pour transparence, jpg pour compatibilité",
+            "note": "output_quality n'affecte pas les PNG"
+        },
+        {
+            "topic": "Seed",
+            "recommendation": "Utilisez un seed fixe pour reproduire exactement le même résultat",
+            "use_case": "Utile pour A/B testing ou debugging"
+        }
+    ],
+    "limitations": [
+        "Les images de sortie sont hébergées temporairement sur Replicate",
+        "Téléchargez et sauvegardez les images si vous avez besoin de persistance",
+        "Le safety checker peut bloquer certaines générations (désactivable avec disable_safety_checker)",
+        "Les formats d'entrée supportés sont: jpeg, png, gif, webp uniquement"
+    ],
+    "notes": [
+        "⚠️ Modèle unique pour édition ET combinaison d'images",
+        "✨ Peut travailler avec 1 ou plusieurs images en entrée (array)",
+        "🎯 Excellent pour le transfert de pose entre personnes",
+        "🎨 Peut appliquer des transformations stylistiques",
+        "⚡ Mode go_fast activé par défaut pour vitesse optimale",
+        "🔒 Safety checker activé par défaut (modifiable)",
+        "💾 Les fichiers retournés sont des objets avec méthode .url()",
+        "📦 Sauvegarder avec writeFile() pour persistance locale",
+        "🎲 Seed optionnel pour reproductibilité exacte"
+    ]
+}

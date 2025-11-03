@@ -1,0 +1,95 @@
+{
+    "model": {
+        "name": "google/gemini-2.5-flash",
+        "description": "Modèle Gemini 2.5 Flash de Google pour génération de texte",
+        "url": "https://replicate.com/google/gemini-2.5-flash",
+        "version": "latest",
+        "usage": "Amélioration de prompts, génération de texte"
+    },
+    "input": {
+        "type": "object",
+        "title": "Input",
+        "required": [
+            "prompt"
+        ],
+        "properties": {
+            "top_p": {
+                "type": "number",
+                "title": "Top P",
+                "default": 0.95,
+                "maximum": 1,
+                "minimum": 0,
+                "x-order": 3,
+                "description": "Nucleus sampling parameter - the model considers the results of the tokens with top_p probability mass"
+            },
+            "prompt": {
+                "type": "string",
+                "title": "Prompt",
+                "x-order": 0,
+                "description": "The text prompt to send to the model"
+            },
+            "temperature": {
+                "type": "number",
+                "title": "Temperature",
+                "default": 1,
+                "maximum": 2,
+                "minimum": 0,
+                "x-order": 2,
+                "description": "Sampling temperature between 0 and 2"
+            },
+            "thinking_budget": {
+                "type": "integer",
+                "title": "Thinking Budget",
+                "maximum": 24576,
+                "minimum": 0,
+                "x-order": 5,
+                "nullable": true,
+                "description": "Thinking budget for reasoning (0 to disable thinking, higher values allow more reasoning)"
+            },
+            "dynamic_thinking": {
+                "type": "boolean",
+                "title": "Dynamic Thinking",
+                "default": false,
+                "x-order": 6,
+                "description": "Enable dynamic thinking - the model will adjust the thinking budget based on the complexity of the request (overrides thinking_budget parameter)"
+            },
+            "max_output_tokens": {
+                "type": "integer",
+                "title": "Max Output Tokens",
+                "default": 65535,
+                "maximum": 65535,
+                "minimum": 1,
+                "x-order": 4,
+                "description": "Maximum number of tokens to generate"
+            },
+            "system_instruction": {
+                "type": "string",
+                "title": "System Instruction",
+                "x-order": 1,
+                "nullable": true,
+                "description": "System instruction to guide the model's behavior"
+            }
+        }
+    },
+    "output": {
+        "type": "array",
+        "items": {
+            "type": "string"
+        },
+        "title": "Output",
+        "x-cog-array-type": "iterator",
+        "x-cog-array-display": "concatenate"
+    },
+    "code_example": {
+        "javascript": {
+            "stream": "const input = {\n  top_p: 0.95,\n  prompt: \"A recipe for flan\",\n  temperature: 1,\n  dynamic_thinking: false,\n  max_output_tokens: 65535\n};\n\nfor await (const event of replicate.stream(\"google/gemini-2.5-flash\", { input })) {\n  process.stdout.write(event.toString());\n}",
+            "run": "const output = await replicate.run(\n  'google/gemini-2.5-flash',\n  {\n    input: {\n      prompt: 'A recipe for flan',\n      max_output_tokens: 1024,\n      temperature: 0.7,\n      top_p: 0.95,\n      dynamic_thinking: false\n    }\n  }\n);"
+        }
+    },
+    "notes": [
+        "Le modèle supporte le streaming pour des réponses en temps réel",
+        "temperature plus basse = réponses plus cohérentes",
+        "temperature plus haute = réponses plus créatives",
+        "max_output_tokens peut aller jusqu'à 65535 mais ajuster selon les besoins"
+    ]
+}

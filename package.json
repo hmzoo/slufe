@@ -1,0 +1,27 @@
+{
+  "name": "slufe",
+  "version": "1.0.0",
+  "description": "Application IA avec Node.js backend et Vue.js/Quasar frontend",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "setup": "npm run install:all && cp backend/.env.example backend/.env"
+  },
+  "keywords": [
+    "ia",
+    "vue",
+    "quasar",
+    "express",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

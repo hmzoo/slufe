@@ -1,0 +1,86 @@
+{
+  "title": "Références API Replicate",
+  "description": "Documentation des modèles IA utilisés dans le projet Slufe",
+  "date": "2025-11-02",
+  "models": [
+    {
+      "file": "gemini-2.5-flash.json",
+      "model": "google/gemini-2.5-flash",
+      "type": "text-generation",
+      "usage": "Amélioration de prompts",
+      "status": "✅ Implémenté et testé"
+    },
+    {
+      "file": "llava-13b.json",
+      "model": "yorickvp/llava-13b",
+      "type": "vision-language",
+      "usage": "Analyse et description d'images",
+      "status": "✅ Implémenté et testé"
+    },
+    {
+      "file": "flux-schnell.json",
+      "model": "black-forest-labs/flux-schnell",
+      "type": "text-to-image",
+      "usage": "Génération rapide d'images",
+      "status": "🔄 Utilisé actuellement"
+    },
+    {
+      "file": "flux-1.1-pro.json",
+      "model": "black-forest-labs/flux-1.1-pro",
+      "type": "text-to-image",
+      "usage": "Génération d'images haute qualité",
+      "status": "📝 Alternative pro disponible"
+    }
+  ],
+  "structure": {
+    "description": "Chaque fichier JSON contient:",
+    "sections": [
+      {
+        "name": "model",
+        "content": "Informations générales (nom, description, URL, usage)"
+      },
+      {
+        "name": "input",
+        "content": "Paramètres d'entrée détaillés avec types, defaults, exemples"
+      },
+      {
+        "name": "output",
+        "content": "Format de sortie et structure de la réponse"
+      },
+      {
+        "name": "code_example",
+        "content": "Exemples de code JavaScript/Node.js"
+      },
+      {
+        "name": "notes",
+        "content": "Conseils, best practices, pièges à éviter"
+      }
+    ]
+  },
+  "usage_instructions": [
+    "1. Consultez le fichier JSON du modèle que vous voulez utiliser",
+    "2. Copiez les informations officielles depuis replicate.com dans les sections appropriées",
+    "3. Testez les exemples de code avant de les utiliser en production",
+    "4. Mettez à jour les notes avec vos découvertes pendant le développement"
+  ],
+  "useful_links": [
+    {
+      "name": "Replicate Documentation",
+      "url": "https://replicate.com/docs"
+    },
+    {
+      "name": "Replicate Node.js Client",
+      "url": "https://github.com/replicate/replicate-javascript"
+    },
+    {
+      "name": "Model Explorer",
+      "url": "https://replicate.com/explore"
+    }
+  ],
+  "notes": [
+    "Les fichiers JSON sont au format commenté pour faciliter la lecture",
+    "Mettez à jour les exemples si les APIs changent",
+    "Ajoutez de nouveaux modèles au fur et à mesure de leur découverte",
+    "Les versions peuvent changer - vérifiez sur replicate.com"
+  ]
+}

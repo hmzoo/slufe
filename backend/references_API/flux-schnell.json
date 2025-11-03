@@ -1,0 +1,97 @@
+{
+  "model": {
+    "name": "black-forest-labs/flux-schnell",
+    "description": "Modèle FLUX Schnell pour génération rapide d'images de haute qualité",
+    "url": "https://replicate.com/black-forest-labs/flux-schnell",
+    "version": "latest",
+    "usage": "Génération d'images à partir de texte (text-to-image)"
+  },
+  "input": {
+    "prompt": {
+      "type": "string",
+      "description": "Description détaillée de l'image à générer",
+      "required": true,
+      "max_length": 10000,
+      "example": "A majestic cat sitting on a throne, wearing a golden crown, digital art, highly detailed"
+    },
+    "num_outputs": {
+      "type": "integer",
+      "description": "Nombre d'images à générer",
+      "default": 1,
+      "min": 1,
+      "max": 4,
+      "example": 1
+    },
+    "aspect_ratio": {
+      "type": "string",
+      "description": "Format de l'image générée",
+      "default": "1:1",
+      "options": ["1:1", "16:9", "21:9", "2:3", "3:2", "4:5", "5:4", "9:16", "9:21"],
+      "example": "16:9"
+    },
+    "output_format": {
+      "type": "string",
+      "description": "Format de sortie de l'image",
+      "default": "webp",
+      "options": ["webp", "jpg", "png"],
+      "example": "png"
+    },
+    "output_quality": {
+      "type": "integer",
+      "description": "Qualité de l'image (pour jpg/webp)",
+      "default": 80,
+      "min": 0,
+      "max": 100,
+      "example": 90
+    },
+    "num_inference_steps": {
+      "type": "integer",
+      "description": "Nombre d'étapes de débruitage (plus = meilleure qualité)",
+      "default": 4,
+      "min": 1,
+      "max": 50,
+      "example": 4
+    },
+    "guidance_scale": {
+      "type": "number",
+      "description": "Force d'adhésion au prompt (classique: 7.5)",
+      "default": 3.5,
+      "min": 0,
+      "max": 20,
+      "example": 7.5
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Seed pour reproductibilité (optionnel)",
+      "required": false,
+      "example": 42
+    },
+    "disable_safety_checker": {
+      "type": "boolean",
+      "description": "Désactiver le filtre de sécurité",
+      "default": false,
+      "example": false
+    }
+  },
+  "output": {
+    "type": "array de URLs",
+    "description": "URLs des images générées (hébergées temporairement)",
+    "format": ["https://replicate.delivery/...image1.png"],
+    "example": ["https://replicate.delivery/pbxt/abc123/output.png"]
+  },
+  "code_example": {
+    "javascript": {
+      "basic": "const output = await replicate.run(\n  'black-forest-labs/flux-schnell',\n  {\n    input: {\n      prompt: 'A cat wearing a crown',\n      num_outputs: 1,\n      aspect_ratio: '1:1',\n      output_format: 'png'\n    }\n  }\n);\n\n// output est un array d'URLs\nconst imageUrl = output[0];",
+      "advanced": "const output = await replicate.run(\n  'black-forest-labs/flux-schnell',\n  {\n    input: {\n      prompt: enhancedPrompt,\n      num_outputs: 1,\n      aspect_ratio: '16:9',\n      output_format: 'png',\n      output_quality: 95,\n      num_inference_steps: 8,\n      guidance_scale: 7.5,\n      seed: 42,\n      disable_safety_checker: false\n    }\n  }\n);"
+    }
+  },
+  "notes": [
+    "FLUX Schnell est optimisé pour la vitesse (4 steps suffisent)",
+    "guidance_scale plus bas (3-4) pour ce modèle, contrairement aux anciens modèles",
+    "num_inference_steps: 4 = rapide, 8-12 = meilleure qualité",
+    "Le modèle retourne un array d'URLs même pour num_outputs=1",
+    "Les images sont hébergées temporairement, à télécharger si besoin de persistance",
+    "aspect_ratio recommandé: 1:1 pour portraits, 16:9 pour paysages",
+    "output_quality: 80-90 = bon compromis taille/qualité"
+  ]
+}
