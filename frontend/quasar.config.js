@@ -49,6 +49,20 @@ module.exports = configure(function (ctx) {
             '^/api': '/api'
           }
         },
+        '/medias': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          pathRewrite: {
+            '^/medias': '/medias'
+          }
+        },
+        '/workflows': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          pathRewrite: {
+            '^/workflows': '/workflows'
+          }
+        },
       },
     },
     

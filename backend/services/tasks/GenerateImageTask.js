@@ -1,4 +1,5 @@
 import { generateImage } from '../imageGenerator.js';
+import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération d'images
@@ -77,8 +78,30 @@ export class GenerateImageTask {
         aspectRatio: aspectRatio
       });
 
+      // Télécharger et sauvegarder l'image localement
+      global.logWorkflow(`📥 Téléchargement de l'image générée...`);
+      
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'image/png');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      global.logWorkflow(`💾 Image sauvegardée localement`, {
+        filename: savedFile.filename,
+        url: savedFile.url,
+        size: `${Math.round(buffer.length / 1024)}KB`
+      });
+
       return {
-        image: imageUrl,
+        image: savedFile.url,
+        image_filename: savedFile.filename,
+        external_url: imageUrl, // Garder l'URL originale pour référence
         prompt_used: inputs.prompt,
         reference_image: inputs.reference_image || null,
         parameters_used: generationParams,

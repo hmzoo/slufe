@@ -299,6 +299,65 @@ export const useWorkflowStore = defineStore('workflow', () => {
           required: true
         }
       }
+    },
+    {
+      id: 'video-from-image',
+      name: 'Générer vidéo (image)',
+      description: 'Anime une image pour créer une vidéo',
+      icon: 'movie',
+      category: 'video',
+      workflow: {
+        id: "generate-video-from-image",
+        name: "Génération de vidéo à partir d'image",
+        description: "Anime une image pour créer une vidéo",
+        tasks: [
+          {
+            id: "video1",
+            type: "generate_video_i2v",
+            input: {
+              image: "{{inputs.image}}",
+              prompt: "{{inputs.prompt}}",
+              numFrames: "{{inputs.numFrames}}",
+              aspectRatio: "{{inputs.aspectRatio}}"
+            }
+          }
+        ]
+      },
+      inputs: {
+        image: {
+          type: 'image',
+          label: 'Image de départ',
+          hint: 'Image à animer pour créer la vidéo',
+          required: true
+        },
+        prompt: {
+          type: 'text',
+          label: 'Description du mouvement',
+          placeholder: 'Décrivez l\'animation souhaitée...',
+          hint: 'Expliquez comment l\'image doit s\'animer',
+          required: true
+        },
+        numFrames: {
+          type: 'select',
+          label: 'Durée de la vidéo',
+          options: [
+            { label: 'Courte (~3-5s)', value: 81 },
+            { label: 'Longue (~5-8s)', value: 121 }
+          ],
+          hint: 'Nombre d\'images par seconde',
+          required: true
+        },
+        aspectRatio: {
+          type: 'select',
+          label: 'Format vidéo',
+          options: [
+            { label: 'Paysage (16:9)', value: '16:9' },
+            { label: 'Portrait (9:16)', value: '9:16' }
+          ],
+          hint: 'Orientation de la vidéo',
+          required: true
+        }
+      }
     }
   ])
 
@@ -340,6 +399,8 @@ export const useWorkflowStore = defineStore('workflow', () => {
         defaults[key] = input.min || 0
       } else if (input.type === 'images') {
         defaults[key] = []
+      } else if (input.type === 'image') {
+        defaults[key] = null
       } else {
         defaults[key] = ''
       }
@@ -369,14 +430,20 @@ export const useWorkflowStore = defineStore('workflow', () => {
     lastResult.value = null
 
     try {
-      // Déterminer si on a des images à uploader
-      const hasImages = currentWorkflow.value.inputValues.images && 
+      // Déterminer si on a des images à uploader (images multiples ou image unique)
+      const hasMultipleImages = currentWorkflow.value.inputValues.images && 
                         Array.isArray(currentWorkflow.value.inputValues.images) &&
                         currentWorkflow.value.inputValues.images.length > 0
+      
+      const hasSingleImage = currentWorkflow.value.inputValues.image && 
+                        (currentWorkflow.value.inputValues.image instanceof File ||
+                         Array.isArray(currentWorkflow.value.inputValues.image))
+
+      const hasAnyImages = hasMultipleImages || hasSingleImage
 
       let response
 
-      if (hasImages) {
+      if (hasAnyImages) {
         // Utiliser FormData pour multipart/form-data avec fichiers
         const formData = new FormData()
         
@@ -386,7 +453,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
         // Ajouter tous les inputs non-images dans un objet JSON 'inputs'
         const nonImageInputs = {}
         Object.keys(currentWorkflow.value.inputValues).forEach(key => {
-          if (key !== 'images') {
+          if (key !== 'images' && key !== 'image') {
             nonImageInputs[key] = currentWorkflow.value.inputValues[key]
           }
         })
@@ -394,16 +461,31 @@ export const useWorkflowStore = defineStore('workflow', () => {
         // Envoyer les inputs comme JSON
         formData.append('inputs', JSON.stringify(nonImageInputs))
         
-        // Ajouter les fichiers images directement (ce sont des objets File)
-        const images = currentWorkflow.value.inputValues.images
-        for (let i = 0; i < images.length; i++) {
-          formData.append('images', images[i]) // Ajouter le File directement
+        // Ajouter les fichiers images multiples (images)
+        if (hasMultipleImages) {
+          const images = currentWorkflow.value.inputValues.images
+          for (let i = 0; i < images.length; i++) {
+            formData.append('images', images[i]) // Ajouter le File directement
+          }
+        }
+        
+        // Ajouter l'image unique (image)
+        if (hasSingleImage) {
+          const imageValue = currentWorkflow.value.inputValues.image
+          if (Array.isArray(imageValue) && imageValue.length > 0) {
+            // Si c'est un tableau avec un élément (comportement de q-file avec single)
+            formData.append('image', imageValue[0])
+          } else if (imageValue instanceof File) {
+            // Si c'est directement un File
+            formData.append('image', imageValue)
+          }
         }
 
         console.log('🚀 Exécution workflow avec images (multipart/form-data)', {
           workflow: currentWorkflow.value.workflow.id,
           inputs: Object.keys(nonImageInputs),
-          imageCount: images.length
+          multipleImages: hasMultipleImages ? currentWorkflow.value.inputValues.images?.length : 0,
+          singleImage: hasSingleImage ? 1 : 0
         })
 
         response = await api.post('/workflow/run', formData, {

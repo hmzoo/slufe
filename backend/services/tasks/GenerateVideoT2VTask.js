@@ -1,4 +1,5 @@
-import { generateVideo } from '../videoGenerator.js';
+import { generateVideoT2V } from '../videoGenerator.js';
+import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération de vidéo text-to-video
@@ -86,8 +87,30 @@ export class GenerateVideoT2VTask {
         processingTime: result.processingTime
       });
 
+      // Télécharger et sauvegarder la vidéo localement
+      global.logWorkflow(`📥 Téléchargement de la vidéo T2V...`);
+      
+      const response = await fetch(result.videoUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement vidéo: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      global.logWorkflow(`💾 Vidéo T2V sauvegardée localement`, {
+        filename: savedFile.filename,
+        url: savedFile.url,
+        size: `${Math.round(buffer.length / 1024 / 1024)}MB`
+      });
+
       return {
-        video: result.videoUrl,
+        video: savedFile.url,
+        video_filename: savedFile.filename,
+        external_url: result.videoUrl, // Garder l'URL originale pour référence
         prompt_used: inputs.prompt,
         parameters_used: {
           numFrames: generationParams.numFrames,

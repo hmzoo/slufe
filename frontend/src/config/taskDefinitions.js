@@ -90,6 +90,94 @@ export const TASK_DEFINITIONS = {
     }
   },
 
+  image_resize_crop: {
+    type: 'image_resize_crop',
+    name: 'Redimensionner/Recadrer',
+    icon: 'crop',
+    color: 'purple',
+    category: 'image',
+    description: 'Redimensionne et recadre des images selon des paramètres spécifiques',
+    model: 'Sharp',
+    inputs: {
+      image: {
+        type: 'image',
+        label: 'Image à traiter',
+        required: true,
+        acceptsVariable: true,
+        multiple: false
+      },
+      h_max: {
+        type: 'number',
+        label: 'Largeur maximale',
+        required: false,
+        default: 1024,
+        min: 1,
+        max: 4096,
+        hint: 'Largeur maximale en pixels (1-4096)',
+        acceptsVariable: true
+      },
+      v_max: {
+        type: 'number',
+        label: 'Hauteur maximale',
+        required: false,
+        default: 1024,
+        min: 1,
+        max: 4096,
+        hint: 'Hauteur maximale en pixels (1-4096)',
+        acceptsVariable: true
+      },
+      ratio: {
+        type: 'select',
+        label: 'Ratio d\'aspect',
+        required: false,
+        options: [
+          { label: 'Conserver le ratio original', value: 'keep' },
+          { label: 'Carré (1:1)', value: '1:1' },
+          { label: 'Paysage large (16:9)', value: '16:9' },
+          { label: 'Portrait (9:16)', value: '9:16' },
+          { label: 'Photo classique (4:3)', value: '4:3' },
+          { label: 'Portrait classique (3:4)', value: '3:4' },
+          { label: 'Format film (3:2)', value: '3:2' },
+          { label: 'Portrait film (2:3)', value: '2:3' }
+        ],
+        default: 'keep',
+        acceptsVariable: false
+      },
+      crop_center: {
+        type: 'select',
+        label: 'Position de recadrage',
+        required: false,
+        options: [
+          { label: 'Centre', value: 'center' },
+          { label: 'Haut', value: 'top' },
+          { label: 'Bas', value: 'bottom' },
+          { label: 'Tête (portrait)', value: 'head' }
+        ],
+        default: 'center',
+        hint: 'Position du recadrage si changement de ratio nécessaire',
+        acceptsVariable: false
+      }
+    },
+    outputs: {
+      image_url: {
+        type: 'image',
+        description: 'URL de l\'image redimensionnée/recadrée'
+      },
+      original_dimensions: {
+        type: 'object',
+        description: 'Dimensions originales (largeur x hauteur)'
+      },
+      final_dimensions: {
+        type: 'object',
+        description: 'Dimensions finales (largeur x hauteur)'
+      },
+      applied_operations: {
+        type: 'object',
+        description: 'Opérations appliquées (redimensionnement, recadrage, etc.)'
+      }
+    }
+  },
+
   describe_images: {
     type: 'describe_images',
     name: 'Analyser des images',
@@ -306,6 +394,14 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: true,
         multiple: false
       },
+      lastImage: {
+        type: 'image',
+        label: 'Image de fin (optionnel)',
+        required: false,
+        acceptsVariable: true,
+        multiple: false,
+        hint: 'Image de destination pour créer une transition fluide'
+      },
       prompt: {
         type: 'text',
         label: 'Description du mouvement',
@@ -377,6 +473,168 @@ export const TASK_DEFINITIONS = {
       video: {
         type: 'video',
         description: 'URL de la vidéo générée'
+      }
+    }
+  },
+
+  // ========== TÂCHES DE TRAITEMENT VIDÉO ==========
+
+  video_extract_frame: {
+    type: 'video_extract_frame',
+    name: 'Extraire une frame',
+    icon: 'video_call',
+    color: 'purple',
+    category: 'video',
+    description: 'Extrait une frame (image) d\'une vidéo',
+    model: 'FFmpeg',
+    inputs: {
+      video: {
+        type: 'video',
+        label: 'Vidéo source',
+        required: true,
+        acceptsVariable: true
+      },
+      frameType: {
+        type: 'select',
+        label: 'Type de frame',
+        required: false,
+        options: [
+          { label: 'Première frame', value: 'first' },
+          { label: 'Dernière frame', value: 'last' },
+          { label: 'Frame du milieu', value: 'middle' },
+          { label: 'Temps spécifique', value: 'time' }
+        ],
+        default: 'first',
+        acceptsVariable: false
+      },
+      timeCode: {
+        type: 'text',
+        label: 'Temps spécifique',
+        placeholder: '00:00:05.50 ou 5.5',
+        required: false,
+        multiline: false,
+        acceptsVariable: true,
+        hint: 'Utilisé uniquement si "Type de frame" = "Temps spécifique"'
+      },
+      outputFormat: {
+        type: 'select',
+        label: 'Format de sortie',
+        required: false,
+        options: [
+          { label: 'JPEG (recommandé)', value: 'jpg' },
+          { label: 'PNG (avec transparence)', value: 'png' },
+          { label: 'WebP (moderne)', value: 'webp' }
+        ],
+        default: 'jpg',
+        acceptsVariable: false
+      },
+      quality: {
+        type: 'number',
+        label: 'Qualité',
+        required: false,
+        min: 1,
+        max: 100,
+        default: 95,
+        acceptsVariable: false,
+        hint: '1-100, 100=meilleure qualité'
+      }
+    },
+    outputs: {
+      image_url: {
+        type: 'image',
+        description: 'Image extraite de la vidéo'
+      },
+      frame_info: {
+        type: 'object',
+        description: 'Informations sur la frame extraite'
+      }
+    }
+  },
+
+  video_concatenate: {
+    type: 'video_concatenate',
+    name: 'Concaténer des vidéos',
+    icon: 'video_library',
+    color: 'deep-purple',
+    category: 'video',
+    description: 'Assemble plusieurs vidéos en une seule',
+    model: 'FFmpeg',
+    inputs: {
+      videos: {
+        type: 'videos',
+        label: 'Vidéos à concaténer',
+        required: true,
+        acceptsVariable: true,
+        multiple: true,
+        min: 2,
+        max: 20,
+        hint: 'Minimum 2 vidéos, maximum 20'
+      },
+      outputFormat: {
+        type: 'select',
+        label: 'Format de sortie',
+        required: false,
+        options: [
+          { label: 'MP4 (recommandé)', value: 'mp4' },
+          { label: 'MOV', value: 'mov' },
+          { label: 'AVI', value: 'avi' },
+          { label: 'MKV', value: 'mkv' },
+          { label: 'WebM', value: 'webm' }
+        ],
+        default: 'mp4',
+        acceptsVariable: false
+      },
+      resolution: {
+        type: 'select',
+        label: 'Résolution',
+        required: false,
+        options: [
+          { label: 'Automatique (résolution commune)', value: null },
+          { label: 'HD 720p (1280x720)', value: '1280x720' },
+          { label: 'Full HD 1080p (1920x1080)', value: '1920x1080' },
+          { label: '2K (2560x1440)', value: '2560x1440' },
+          { label: '4K (3840x2160)', value: '3840x2160' },
+          { label: 'Instagram Stories (1080x1920)', value: '1080x1920' },
+          { label: 'YouTube Shorts (1080x1920)', value: '1080x1920' }
+        ],
+        default: null,
+        acceptsVariable: false
+      },
+      fps: {
+        type: 'select',
+        label: 'Fréquence d\'images',
+        required: false,
+        options: [
+          { label: 'Automatique', value: null },
+          { label: '24 fps (cinéma)', value: 24 },
+          { label: '25 fps (PAL)', value: 25 },
+          { label: '30 fps (standard)', value: 30 },
+          { label: '60 fps (fluide)', value: 60 }
+        ],
+        default: null,
+        acceptsVariable: false
+      },
+      quality: {
+        type: 'select',
+        label: 'Qualité',
+        required: false,
+        options: [
+          { label: 'Basse (rapide, petit fichier)', value: 'low' },
+          { label: 'Moyenne (équilibré)', value: 'medium' },
+          { label: 'Haute (lent, gros fichier)', value: 'high' }
+        ],
+        default: 'medium',
+        acceptsVariable: false
+      }
+    },
+    outputs: {
+      video_url: {
+        type: 'video',
+        description: 'Vidéo concaténée'
+      },
+      concat_info: {
+        type: 'object',
+        description: 'Informations sur la concaténation'
       }
     }
   },

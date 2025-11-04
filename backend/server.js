@@ -14,6 +14,7 @@ import videoRoutes from './routes/video.js';
 import videoImageRoutes from './routes/videoImage.js';
 import workflowRoutes from './routes/workflow.js';
 import historyRoutes from './routes/history.js';
+import uploadRoutes from './routes/upload.js';
 
 dotenv.config();
 
@@ -59,6 +60,15 @@ app.use('/api/video', videoRoutes);
 app.use('/api/video-image', videoImageRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/upload', uploadRoutes);
+
+// Servir les fichiers médias (images, vidéos)
+const mediasPath = path.join(__dirname, 'medias');
+app.use('/medias', express.static(mediasPath));
+
+// Servir les workflows JSON
+const workflowsPath = path.join(__dirname, 'workflows');
+app.use('/workflows', express.static(workflowsPath));
 
 // Servir les fichiers statiques du frontend (après build)
 const frontendPath = path.join(__dirname, '../frontend/dist/spa');

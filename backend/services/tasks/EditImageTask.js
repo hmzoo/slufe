@@ -1,4 +1,5 @@
 import { editImage, editSingleImage } from '../imageEditor.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour l'édition d'images
@@ -85,15 +86,52 @@ export class EditImageTask {
         });
       }
 
-      const editedImageUrl = result.imageUrls?.[0] || result.imageUrl || result;
+      const externalImageUrls = result.imageUrls || [result.imageUrl || result];
 
       global.logWorkflow(`✅ Image(s) éditée(s) avec succès`, {
-        editedImageUrl: typeof editedImageUrl === 'string' ? editedImageUrl.substring(0, 100) + '...' : 'Multiple images'
+        imageCount: externalImageUrls.length,
+        firstImageUrl: externalImageUrls[0]?.substring(0, 100) + '...'
       });
 
+      // Télécharger et sauvegarder toutes les images localement
+      global.logWorkflow(`📥 Téléchargement de ${externalImageUrls.length} image(s) éditée(s)...`);
+      
+      const localImages = [];
+      for (let i = 0; i < externalImageUrls.length; i++) {
+        const url = externalImageUrls[i];
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Erreur téléchargement image ${i + 1}: ${response.status}`);
+          }
+          
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const extension = getFileExtension(response.headers.get('content-type') || 'image/jpeg');
+          const uniqueFileName = generateUniqueFileName(extension);
+          const savedPath = saveMediaFile(uniqueFileName, buffer);
+          
+          localImages.push({
+            url: `/medias/${uniqueFileName}`,
+            filename: uniqueFileName,
+            external_url: url
+          });
+          
+          global.logWorkflow(`💾 Image ${i + 1} sauvegardée`, {
+            filename: uniqueFileName,
+            size: `${Math.round(buffer.length / 1024)}KB`
+          });
+        } catch (error) {
+          global.logWorkflow(`❌ Erreur téléchargement image ${i + 1}:`, error.message);
+          throw error;
+        }
+      }
+
       return {
-        edited_image: editedImageUrl,
-        edited_images: result.imageUrls || [editedImageUrl],
+        edited_image: localImages[0]?.url,
+        edited_images: localImages.map(img => img.url),
+        edited_image_filenames: localImages.map(img => img.filename),
+        external_urls: externalImageUrls,
         prompt_used: inputs.prompt,
         original_images: inputs.images,
         parameters_used: editParams,

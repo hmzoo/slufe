@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { saveWorkflowFile, getMediaPath } from '../utils/mediaUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,11 +35,15 @@ export function generateOperationId() {
 export async function initializeStorage() {
   const operationsDir = path.join(DATA_ROOT, 'operations');
   const workflowsDir = path.join(DATA_ROOT, 'workflows');
+  const mediasDir = path.join(process.cwd(), 'medias');
+  const publicWorkflowsDir = path.join(process.cwd(), 'workflows');
   
   try {
     await fs.mkdir(DATA_ROOT, { recursive: true });
     await fs.mkdir(operationsDir, { recursive: true });
     await fs.mkdir(workflowsDir, { recursive: true });
+    await fs.mkdir(mediasDir, { recursive: true });
+    await fs.mkdir(publicWorkflowsDir, { recursive: true });
     console.log('✅ Dossiers de stockage initialisés:', DATA_ROOT);
   } catch (error) {
     console.error('❌ Erreur initialisation stockage:', error);
@@ -206,6 +211,14 @@ export async function listOperations(limit = 50) {
 export async function downloadImageToPath(url, targetPath) {
   try {
     console.log(`📥 Téléchargement de l'image depuis: ${url.substring(0, 80)}...`);
+    
+    // Si c'est une URL relative locale (/medias/...), copier directement le fichier
+    if (url.startsWith('/medias/')) {
+      const sourceFile = path.join(process.cwd(), url);
+      await fs.copyFile(sourceFile, targetPath);
+      console.log(`📁 Fichier copié localement: ${path.basename(sourceFile)} -> ${path.basename(targetPath)}`);
+      return;
+    }
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -575,7 +588,8 @@ async function downloadAndSaveResultCustom(url, operationId, filename) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
-    const buffer = await response.buffer();
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     await fs.writeFile(filepath, buffer);
     
     console.log(`✅ Asset téléchargé: ${filename}`);

@@ -8,6 +8,7 @@ import {
   validateEditParams,
   isReplicateConfigured
 } from '../services/imageEditor.js';
+import { resizeCropImage, validateResizeCropParams } from '../services/imageResizeCrop.js';
 
 const router = express.Router();
 
@@ -300,6 +301,79 @@ router.post('/transfer-style', upload.fields([
 });
 
 /**
+ * POST /api/edit/resize-crop
+ * Redimensionne et recadre une image
+ */
+router.post('/resize-crop', upload.single('image'), async (req, res) => {
+  try {
+    console.log('🔧 Redimensionnement/recadrage d\'image demandé');
+
+    // Vérifier qu'une image est fournie
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Une image est requise'
+      });
+    }
+
+    // Récupérer les paramètres
+    const {
+      h_max = 1024,
+      v_max = 1024,
+      ratio = 'keep',
+      crop_center = 'center'
+    } = req.body;
+
+    // Convertir les paramètres de taille en nombres
+    const params = {
+      image: req.file.buffer,
+      h_max: parseInt(h_max),
+      v_max: parseInt(v_max),
+      ratio: ratio,
+      crop_center: crop_center
+    };
+
+    // Validation des paramètres
+    const validation = validateResizeCropParams(params);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Paramètres invalides',
+        details: validation.errors
+      });
+    }
+
+    console.log('📐 Paramètres de redimensionnement:', {
+      originalName: req.file.originalname,
+      size: `${Math.round(req.file.size / 1024)}KB`,
+      h_max: params.h_max,
+      v_max: params.v_max,
+      ratio: params.ratio,
+      crop_center: params.crop_center
+    });
+
+    // Exécuter le redimensionnement/recadrage
+    const result = await resizeCropImage(params);
+
+    console.log('✅ Redimensionnement/recadrage terminé:', {
+      originalSize: `${result.original_dimensions.width}x${result.original_dimensions.height}`,
+      finalSize: `${result.final_dimensions.width}x${result.final_dimensions.height}`,
+      outputFile: result.file_info.filename
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Erreur lors du redimensionnement/recadrage:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur lors du redimensionnement/recadrage',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
  * GET /api/edit/status
  * Vérifie le statut du service d'édition
  */
@@ -315,7 +389,8 @@ router.get('/status', (req, res) => {
       editSingleImage: true,
       transferPose: true,
       transferStyle: true,
-      multipleImages: true
+      multipleImages: true,
+      resizeCrop: true
     },
     message: configured 
       ? 'Service d\'édition d\'images opérationnel'

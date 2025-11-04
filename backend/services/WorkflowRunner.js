@@ -20,9 +20,14 @@ export class WorkflowRunner {
     this.taskServices.set('describe_images', null);
     this.taskServices.set('generate_image', null);
     this.taskServices.set('edit_image', null);
+    this.taskServices.set('image_resize_crop', null);
     this.taskServices.set('generate_video_t2v', null);
     this.taskServices.set('generate_video_i2v', null);
     this.taskServices.set('generate_workflow', null);
+    
+    // Tâches de traitement vidéo
+    this.taskServices.set('video_extract_frame', null);
+    this.taskServices.set('video_concatenate', null);
     
     // Tâches génériques (inputs utilisateur)
     this.taskServices.set('input_text', null);
@@ -217,6 +222,19 @@ export class WorkflowRunner {
         return resolvedValue !== undefined ? resolvedValue : value;
       }
       
+      // Cas spécial: UUID de média - résolution vers fichier uploadé
+      if (value.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        // C'est un UUID, chercher dans __mediaFiles (mapping direct UUID -> fichier)
+        if (context.inputs && context.inputs.__mediaFiles && context.inputs.__mediaFiles[value]) {
+          global.logWorkflow(`📎 Résolution UUID: ${value} -> fichier média`, {
+            mediaId: value
+          });
+          return context.inputs.__mediaFiles[value];
+        }
+        global.logWorkflow(`⚠️ UUID non résolu: ${value}`);
+        return value;
+      }
+      
       // Cas normal : résolution de variables dans une chaîne avec texte
       const resolved = this.resolveStringVariables(value, context);
       // Si c'est une URL d'image, la convertir en base64
@@ -332,9 +350,14 @@ export class WorkflowRunner {
       'describe_images': './tasks/DescribeImagesTask.js',
       'generate_image': './tasks/GenerateImageTask.js',
       'edit_image': './tasks/EditImageTask.js',
+      'image_resize_crop': './tasks/ImageResizeCropTask.js',
       'generate_video_t2v': './tasks/GenerateVideoT2VTask.js',
       'generate_video_i2v': './tasks/GenerateVideoI2VTask.js',
       'generate_workflow': './tasks/GenerateWorkflowTask.js',
+      
+      // Tâches de traitement vidéo
+      'video_extract_frame': './tasks/VideoExtractFrameTask.js',
+      'video_concatenate': './tasks/VideoConcatenateTask.js',
       
       // Tâches génériques (inputs utilisateur)
       'input_text': './tasks/InputTextTask.js',
@@ -385,7 +408,8 @@ export class WorkflowRunner {
         throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const buffer = await response.buffer();
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
       const contentType = response.headers.get('content-type') || 'image/jpeg';
       
       const base64Data = buffer.toString('base64');

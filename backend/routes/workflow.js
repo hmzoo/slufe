@@ -23,11 +23,147 @@ import { saveCompleteOperation, saveWorkflowExecution } from '../services/dataSt
 
 // Import du nouveau système de workflows
 import WorkflowRunner from '../services/WorkflowRunner.js';
+import uploadMediaService from '../services/uploadMedia.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 const router = express.Router();
 
 // Instance du runner de workflows
 const workflowRunner = new WorkflowRunner();
+
+/**
+ * Résout les IDs de médias dans le workflow vers les fichiers locaux
+ * Convertit les string IDs en objets de fichiers compatibles avec l'ancien système
+ */
+async function resolveMediaIds(workflow, inputs) {
+  try {
+    const filesByField = {};
+    const mediaFiles = {}; // Mapping direct UUID -> fichier
+    
+    global.logWorkflow('🔍 Début résolution médias', {
+      tasks: workflow.tasks?.length || 0
+    });
+    
+    // Parcourir toutes les tâches pour trouver les IDs de médias
+    for (const task of workflow.tasks) {
+      global.logWorkflow(`🔍 Analyse tâche: ${task.id}`, {
+        taskType: task.type,
+        hasInput: !!task.input,
+        inputKeys: task.input ? Object.keys(task.input) : []
+      });
+      
+      if (task.input) {
+        for (const [key, value] of Object.entries(task.input)) {
+          global.logWorkflow(`🔍 Analyse input: ${key}`, {
+            valueType: typeof value,
+            isArray: Array.isArray(value),
+            value: value
+          });
+          // Vérifier si c'est un ID de média (string UUID)
+          if (typeof value === 'string' && value.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            try {
+              const mediaInfo = await uploadMediaService.getMediaInfo(value);
+              const mediaBuffer = await fs.readFile(mediaInfo.path);
+              
+              const fieldName = `${task.id}_${key}`;
+              
+              if (!filesByField[fieldName]) {
+                filesByField[fieldName] = [];
+              }
+              
+              const fileInfo = {
+                buffer: mediaBuffer,
+                originalName: mediaInfo.originalName || mediaInfo.filename,
+                mimeType: mediaInfo.mimetype,
+                size: mediaInfo.size
+              };
+              
+              filesByField[fieldName].push(fileInfo);
+              
+              // Ajouter au mapping direct UUID -> fichier
+              mediaFiles[value] = fileInfo;
+              
+              global.logWorkflow(`📎 Résolution média ID: ${value}`, {
+                fieldName: fieldName,
+                mediaType: mediaInfo.type,
+                size: mediaInfo.size
+              });
+              
+            } catch (error) {
+              global.logWorkflow(`❌ Erreur résolution média ID: ${value}`, {
+                error: error.message
+              });
+            }
+          }
+          // Vérifier si c'est un array d'IDs de médias
+          else if (Array.isArray(value) && value.length > 0 && 
+                   typeof value[0] === 'string' && 
+                   value[0].match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            
+            const fieldName = `${task.id}_${key}`;
+            
+            if (!filesByField[fieldName]) {
+              filesByField[fieldName] = [];
+            }
+            
+            for (const mediaId of value) {
+              try {
+                const mediaInfo = await uploadMediaService.getMediaInfo(mediaId);
+                const mediaBuffer = await fs.readFile(mediaInfo.path);
+                
+                const fileInfo = {
+                  buffer: mediaBuffer,
+                  originalName: mediaInfo.originalName || mediaInfo.filename,
+                  mimeType: mediaInfo.mimetype,
+                  size: mediaInfo.size
+                };
+                
+                filesByField[fieldName].push(fileInfo);
+                
+                // Ajouter au mapping direct UUID -> fichier
+                mediaFiles[mediaId] = fileInfo;
+                
+                global.logWorkflow(`📎 Résolution média ID array: ${mediaId}`, {
+                  fieldName: fieldName,
+                  mediaType: mediaInfo.type,
+                  size: mediaInfo.size
+                });
+                
+              } catch (error) {
+                global.logWorkflow(`❌ Erreur résolution média ID array: ${mediaId}`, {
+                  error: error.message
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Si des médias ont été résolus, les ajouter aux inputs
+    if (Object.keys(filesByField).length > 0) {
+      inputs.__uploadedFiles = filesByField;
+    }
+    
+    if (Object.keys(mediaFiles).length > 0) {
+      inputs.__mediaFiles = mediaFiles;
+      
+      global.logWorkflow('📎 Médias résolus depuis IDs', {
+        fields: Object.keys(filesByField),
+        mediaIds: Object.keys(mediaFiles),
+        counts: Object.fromEntries(
+          Object.entries(filesByField).map(([k, v]) => [k, v.length])
+        )
+      });
+    }
+    
+  } catch (error) {
+    global.logWorkflow('❌ Erreur lors de la résolution des IDs de médias', {
+      error: error.message
+    });
+  }
+}
 
 // Cache en mémoire pour les analyses d'images
 // Structure: { imageHash: { description, timestamp } }
@@ -235,6 +371,20 @@ router.post('/run', conditionalMulter, async (req, res) => {
       workflowName: workflow.name,
       taskCount: workflow.tasks.length,
       inputKeys: Object.keys(inputs)
+    });
+
+    // Résoudre les IDs de médias vers les fichiers locaux
+    global.logWorkflow('🔍 Avant résolution médias', {
+      workflowTasks: workflow.tasks?.length || 0,
+      inputKeys: Object.keys(inputs),
+      sampleTask: workflow.tasks?.[0]
+    });
+    
+    await resolveMediaIds(workflow, inputs);
+    
+    global.logWorkflow('🔍 Après résolution médias', {
+      inputKeys: Object.keys(inputs),
+      hasUploadedFiles: !!inputs.__uploadedFiles
     });
 
     // Exécution du workflow

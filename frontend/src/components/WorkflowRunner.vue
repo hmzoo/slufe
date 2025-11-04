@@ -190,12 +190,13 @@
                           <div v-else-if="inputDef.type === 'images' || inputDef.type === 'image'" class="image-input-builder">
                             <div class="text-caption text-weight-medium q-mb-xs">{{ inputDef.label }}</div>
                             
-                            <!-- Choix: Variable ou Upload -->
+                            <!-- Choix: Variable, Galerie ou Upload -->
                             <q-btn-toggle
                               :model-value="task.imageInputMode || 'variable'"
-                              @update:model-value="(val) => task.imageInputMode = val"
+                              @update:model-value="(val) => { task.imageInputMode = val; console.log('Image input mode changed:', val, 'for task:', task.id); }"
                               :options="[
                                 { label: 'Variable', value: 'variable', icon: 'code' },
+                                { label: 'Galerie', value: 'gallery', icon: 'photo_library' },
                                 { label: 'Upload', value: 'upload', icon: 'upload_file' }
                               ]"
                               dense
@@ -221,16 +222,49 @@
                               </div>
                             </div>
 
+                            <!-- Mode Galerie -->
+                            <div v-else-if="task.imageInputMode === 'gallery'">
+                              <MediaSelector
+                                v-model="task.mediaIds"
+                                :label="inputDef.label"
+                                :placeholder="inputDef.type === 'images' ? 'Sélectionner des images depuis la galerie...' : 'Sélectionner une image depuis la galerie...'"
+                                :multiple="inputDef.type === 'images'"
+                                :accept="['image']"
+                                @selected="(medias) => onTaskMediaSelected(task, inputKey, medias)"
+                                @uploaded="(medias) => onTaskMediaUploaded(task, inputKey, medias)"
+                              />
+                              
+                              <!-- Info des médias sélectionnés -->
+                              <div v-if="task.mediaIds && getSelectedMediasInfo(task.mediaIds).length" class="q-mt-xs">
+                                <div class="text-caption text-grey-6 q-mb-xs">
+                                  {{ getSelectedMediasInfo(task.mediaIds).length }} média(s) sélectionné(s) :
+                                </div>
+                                <div class="row q-col-gutter-xs">
+                                  <div v-for="media in getSelectedMediasInfo(task.mediaIds)" :key="media.id" class="col-auto">
+                                    <q-chip 
+                                      dense 
+                                      color="primary" 
+                                      text-color="white"
+                                      :label="media.originalName || media.filename"
+                                      removable
+                                      @remove="removeTaskMediaId(task, media.id)"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
                             <!-- Mode Upload -->
-                            <div v-else>
+                            <div v-else-if="task.imageInputMode === 'upload'">
                               <q-file
-                                v-model="task.uploadedFiles"
-                                :multiple="inputDef.multiple !== false"
+                                :multiple="inputDef.type === 'images'"
                                 accept="image/*"
                                 dense
                                 filled
                                 bg-color="white"
                                 @update:model-value="(files) => handleTaskImageUpload(task, inputKey, files)"
+                                :label="inputDef.type === 'images' ? 'Sélectionner des images' : 'Sélectionner une image'"
+                                clearable
                               >
                                 <template v-slot:prepend>
                                   <q-icon name="attach_file" />
@@ -449,46 +483,18 @@
             clearable
           />
           
-          <!-- Input images -->
-          <div v-else-if="input.type === 'images'" class="image-input-section">
-            <div class="text-body2 q-mb-sm">{{ input.label }}</div>
-            <div class="image-uploader">
-              <q-file
-                v-model="imageFiles"
-                multiple
-                accept="image/*"
-                @update:model-value="handleImageUpload"
-                filled
-                :hint="input.hint"
-              >
-                <template v-slot:prepend>
-                  <q-icon name="attach_file" />
-                </template>
-              </q-file>
-              
-              <!-- Prévisualisation des images -->
-              <div v-if="uploadedImages.length" class="image-preview q-mt-sm">
-                <div class="row q-col-gutter-sm">
-                  <div v-for="(image, idx) in uploadedImages" :key="idx" class="col-3">
-                    <q-card flat bordered class="image-card">
-                      <img :src="image.url" :alt="image.name" class="image-thumb" />
-                      <q-card-section class="q-pa-xs">
-                        <div class="text-caption">{{ image.name }}</div>
-                        <q-btn
-                          size="xs"
-                          flat
-                          round
-                          color="negative"
-                          icon="close"
-                          @click="removeImage(idx)"
-                          class="absolute-top-right q-ma-xs"
-                        />
-                      </q-card-section>
-                    </q-card>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <!-- Input images (plural et singular) -->
+          <div v-else-if="input.type === 'images' || input.type === 'image'" class="image-input-section">
+            <MediaSelector
+              :model-value="inputValues[key]"
+              @update:model-value="(val) => workflowStore.updateInputValue(key, val)"
+              :label="input.label"
+              :placeholder="input.hint || (input.type === 'images' ? 'Sélectionner des images...' : 'Sélectionner une image...')"
+              :multiple="input.type === 'images'"
+              :accept="['image']"
+              @selected="(medias) => onTemplateMediaSelected(key, medias)"
+              @uploaded="(medias) => onTemplateMediaUploaded(key, medias)"
+            />
           </div>
 
           <!-- Input nombre -->
@@ -619,8 +625,52 @@
               </div>
             </div>
             
+            <!-- Images redimensionnées/recadrées -->
+            <div v-if="taskResult.type === 'image_resize_crop' && taskResult.outputs?.image" class="q-mb-sm">
+              <div class="text-caption text-grey-6 q-mb-xs">Image redimensionnée/recadrée :</div>
+              
+              <!-- Affichage des dimensions et opérations -->
+              <div v-if="taskResult.outputs.original_dimensions && taskResult.outputs.final_dimensions" class="q-mb-xs">
+                <q-chip size="sm" color="grey-6" text-color="white">
+                  {{ taskResult.outputs.original_dimensions.width }}×{{ taskResult.outputs.original_dimensions.height }} 
+                  → {{ taskResult.outputs.final_dimensions.width }}×{{ taskResult.outputs.final_dimensions.height }}
+                </q-chip>
+                <q-chip 
+                  v-if="taskResult.outputs.applied_operations && taskResult.outputs.applied_operations.length" 
+                  size="sm" 
+                  color="primary" 
+                  text-color="white"
+                  class="q-ml-xs"
+                >
+                  {{ taskResult.outputs.applied_operations.join(', ') }}
+                </q-chip>
+              </div>
+              
+              <q-img
+                :src="taskResult.outputs.image"
+                style="max-width: 100%; max-height: 400px"
+                class="rounded-borders"
+                fit="contain"
+              >
+                <template v-slot:error>
+                  <div class="absolute-full flex flex-center bg-negative text-white">
+                    Erreur de chargement
+                  </div>
+                </template>
+              </q-img>
+              <q-btn
+                flat
+                dense
+                color="primary"
+                icon="download"
+                label="Télécharger"
+                @click="downloadImage(taskResult.outputs.image)"
+                class="q-mt-xs"
+              />
+            </div>
+            
             <!-- Images générées -->
-            <div v-if="taskResult.outputs?.image" class="q-mb-sm">
+            <div v-else-if="taskResult.outputs?.image" class="q-mb-sm">
               <div class="text-caption text-grey-6 q-mb-xs">Image générée :</div>
               <q-img
                 :src="taskResult.outputs.image"
@@ -784,8 +834,12 @@ import { useWorkflowStore } from 'src/stores/useWorkflowStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { TASK_DEFINITIONS, getTaskDefinition, generateTaskId, getAvailableOutputs } from 'src/config/taskDefinitions'
+import { uploadMediaService } from 'src/services/uploadMedia'
+import { useMediaStore } from 'src/stores/useMediaStore'
+import MediaSelector from './MediaSelector.vue'
 
 const workflowStore = useWorkflowStore()
+const mediaStore = useMediaStore()
 const $q = useQuasar()
 
 // État local
@@ -840,7 +894,11 @@ const canExecute = computed(() => {
     const value = inputValues.value[key]
     
     if (input.type === 'images') {
-      return uploadedImages.value.length > 0
+      return Array.isArray(value) && value.length > 0
+    }
+    
+    if (input.type === 'image') {
+      return value instanceof File
     }
     
     if (input.required === false) {
@@ -888,10 +946,18 @@ function addTask(taskType) {
       } else {
         newTask.input[inputKey] = 1
       }
+    } else if (inputDef.type === 'images') {
+      newTask.input[inputKey] = []
+    } else if (inputDef.type === 'image') {
+      newTask.input[inputKey] = null
     } else {
       newTask.input[inputKey] = ''
     }
   })
+  
+  // Initialiser les propriétés pour l'upload d'images
+  newTask.uploadedImagePreviews = []
+  newTask.imageInputMode = 'variable'
   
   customWorkflow.value.tasks.push(newTask)
   
@@ -1044,10 +1110,21 @@ function handleTaskImageUpload(task, inputKey, files) {
   })
   
   // Stocker les fichiers dans l'input de la tâche
-  // On stocke les objets File directement
-  task.input[inputKey] = filesArray
+  const taskDef = getTaskDefinition(task.type)
+  const inputDef = taskDef.inputs[inputKey]
   
-  console.log(`📸 ${filesArray.length} image(s) uploadée(s) pour ${task.id}.${inputKey}`)
+  if (inputDef && inputDef.type === 'image') {
+    // Pour un input de type 'image' (singulier), stocker le premier fichier seulement
+    task.input[inputKey] = filesArray[0] || null
+  } else {
+    // Pour un input de type 'images' (pluriel), stocker le tableau
+    task.input[inputKey] = filesArray
+  }
+  
+  console.log(`📸 ${filesArray.length} image(s) uploadée(s) pour ${task.id}.${inputKey}`, {
+    inputType: inputDef?.type,
+    storedValue: task.input[inputKey]
+  })
 }
 
 /**
@@ -1062,15 +1139,104 @@ function removeTaskImage(task, imageIndex) {
     task.uploadedImagePreviews.splice(imageIndex, 1)
     
     // Mettre à jour l'input
-    const inputKey = Object.keys(getTaskDefinition(task.type).inputs).find(
-      key => getTaskDefinition(task.type).inputs[key].type === 'images' || 
-             getTaskDefinition(task.type).inputs[key].type === 'image'
+    const taskDef = getTaskDefinition(task.type)
+    const inputKey = Object.keys(taskDef.inputs).find(
+      key => taskDef.inputs[key].type === 'images' || 
+             taskDef.inputs[key].type === 'image'
     )
     
-    if (inputKey && task.uploadedImagePreviews.length > 0) {
-      task.input[inputKey] = task.uploadedImagePreviews.map(p => p.file)
-    } else if (inputKey) {
-      task.input[inputKey] = []
+    if (inputKey) {
+      const inputDef = taskDef.inputs[inputKey]
+      
+      if (inputDef.type === 'image') {
+        // Pour un input de type 'image' (singulier)
+        task.input[inputKey] = task.uploadedImagePreviews.length > 0 ? 
+          task.uploadedImagePreviews[0].file : null
+      } else {
+        // Pour un input de type 'images' (pluriel)
+        task.input[inputKey] = task.uploadedImagePreviews.map(p => p.file)
+      }
+    }
+  }
+}
+
+/**
+ * Gère la sélection de médias depuis la galerie pour une tâche
+ */
+function onTaskMediaSelected(task, inputKey, medias) {
+  console.log(`📸 Médias sélectionnés depuis la galerie pour ${task.id}.${inputKey}:`, medias)
+  
+  const taskDef = getTaskDefinition(task.type)
+  const inputDef = taskDef.inputs[inputKey]
+  
+  if (inputDef.type === 'image') {
+    // Pour un input de type 'image' (singulier)
+    const mediaId = medias.length > 0 ? medias[0].id : null
+    task.mediaIds = mediaId
+    task.input[inputKey] = mediaId
+  } else {
+    // Pour un input de type 'images' (pluriel)
+    const mediaIds = medias.map(media => media.id)
+    task.mediaIds = mediaIds
+    task.input[inputKey] = mediaIds
+  }
+}
+
+/**
+ * Gère l'upload de nouveaux médias pour une tâche
+ */
+function onTaskMediaUploaded(task, inputKey, medias) {
+  console.log(`📤 Nouveaux médias uploadés pour ${task.id}.${inputKey}:`, medias)
+  
+  // Les médias sont automatiquement ajoutés au store
+  // On les sélectionne pour la tâche
+  onTaskMediaSelected(task, inputKey, medias)
+  
+  $q.notify({
+    type: 'positive',
+    message: `${medias.length} média(s) uploadé(s) et sélectionné(s)`,
+    timeout: 2000
+  })
+}
+
+/**
+ * Obtient les informations des médias sélectionnés
+ */
+function getSelectedMediasInfo(mediaIds) {
+  if (!mediaIds) return []
+  
+  const ids = Array.isArray(mediaIds) ? mediaIds : [mediaIds]
+  return ids.map(id => mediaStore.getMedia(id)).filter(Boolean)
+}
+
+/**
+ * Supprime un ID de média d'une tâche
+ */
+function removeTaskMediaId(task, mediaIdToRemove) {
+  if (Array.isArray(task.mediaIds)) {
+    task.mediaIds = task.mediaIds.filter(id => id !== mediaIdToRemove)
+    task.input = { ...task.input }
+    
+    // Trouver la clé d'input pour les images
+    const taskDef = getTaskDefinition(task.type)
+    const inputKey = Object.keys(taskDef.inputs).find(
+      key => taskDef.inputs[key].type === 'images' || taskDef.inputs[key].type === 'image'
+    )
+    
+    if (inputKey) {
+      task.input[inputKey] = task.mediaIds
+    }
+  } else if (task.mediaIds === mediaIdToRemove) {
+    task.mediaIds = null
+    
+    // Trouver la clé d'input pour l'image
+    const taskDef = getTaskDefinition(task.type)
+    const inputKey = Object.keys(taskDef.inputs).find(
+      key => taskDef.inputs[key].type === 'image'
+    )
+    
+    if (inputKey) {
+      task.input[inputKey] = null
     }
   }
 }
@@ -1295,76 +1461,145 @@ async function executeBuilderWorkflow() {
       return taskCopy
     })
     
-    // Détecter si des tâches ont des images uploadées (y compris les tâches génériques)
-    const hasUploadedImages = preparedTasks.some(task => {
-      return Object.values(task.input || {}).some(inputValue => {
-        return Array.isArray(inputValue) && inputValue.length > 0 && 
-               inputValue[0] instanceof File
+    // NOUVELLE APPROCHE: Upload des médias en premier lieu
+    // Collecter tous les fichiers qui nécessitent un upload
+    const filesToUpload = []
+    const fileMapping = new Map() // Pour mapper file -> media ID
+    
+    console.log('🔍 Analyse des tâches pour files:', preparedTasks.map(task => ({
+      id: task.id,
+      type: task.type,
+      inputKeys: Object.keys(task.input || {}),
+      inputs: task.input
+    })))
+    
+    preparedTasks.forEach(task => {
+      Object.keys(task.input || {}).forEach(key => {
+        const value = task.input[key]
+        console.log(`🔍 Input ${task.id}.${key}:`, {
+          type: typeof value,
+          isArray: Array.isArray(value),
+          isFile: value instanceof File,
+          isMediaId: typeof value === 'string' && value.length === 36,
+          value: value
+        })
+        
+        // Nouveau: Gérer les IDs de médias de la galerie ET les fichiers uploadés
+        if (Array.isArray(value) && value.length > 0) {
+          // Vérifier si c'est un array de fichiers ou d'IDs de médias
+          if (value[0] instanceof File) {
+            // Array de fichiers à uploader
+            console.log(`📁 Détecté array de fichiers: ${task.id}.${key}`, value.length)
+            value.forEach(file => {
+              if (!fileMapping.has(file)) {
+                filesToUpload.push(file)
+                fileMapping.set(file, null) // Sera rempli après l'upload
+              }
+            })
+          } else if (typeof value[0] === 'string' && value[0].length === 36) {
+            // Array d'IDs de médias (UUID format) - déjà prêt, pas d'upload nécessaire
+            console.log(`🗂️ Détecté array d'IDs de médias: ${task.id}.${key}`, value.length)
+          }
+        } else if (value instanceof File) {
+          // Fichier unique à uploader
+          console.log(`📁 Détecté fichier unique: ${task.id}.${key}`, value.name)
+          if (!fileMapping.has(value)) {
+            filesToUpload.push(value)
+            fileMapping.set(value, null) // Sera rempli après l'upload
+          }
+        } else if (typeof value === 'string' && value.length === 36) {
+          // ID de média unique (UUID format) - déjà prêt, pas d'upload nécessaire  
+          console.log(`🗂️ Détecté ID de média unique: ${task.id}.${key}`, value)
+        }
       })
     })
     
-    let response
-    
-    if (hasUploadedImages) {
-      // Utiliser FormData pour les images
-      const formData = new FormData()
+    // Upload tous les médias si nécessaire
+    if (filesToUpload.length > 0) {
+      console.log(`📤 Upload de ${filesToUpload.length} média(s) avant exécution du workflow`)
       
-      // Préparer le workflow en convertissant les File objects en références
-      const workflowForSubmit = {
-        id: customWorkflow.value.id,
-        name: customWorkflow.value.name,
-        description: customWorkflow.value.description,
-        tasks: preparedTasks.map(task => {
-          const taskCopy = { ...task, input: { ...task.input } }
-          
-          // Pour chaque input qui contient des Files
-          Object.keys(taskCopy.input).forEach(key => {
-            const value = taskCopy.input[key]
-            if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
-              // Remplacer par une référence spéciale
-              taskCopy.input[key] = `__UPLOADED_IMAGES_${task.id}_${key}__`
-              
-              // Ajouter les fichiers au FormData
-              value.forEach((file, idx) => {
-                formData.append(`${task.id}_${key}`, file)
-              })
-            } else if (value instanceof File) {
-              // Fichier unique (camera_capture)
-              taskCopy.input[key] = `__UPLOADED_IMAGE_${task.id}_${key}__`
-              formData.append(`${task.id}_${key}`, value)
-            }
-          })
-          
-          return taskCopy
-        })
-      }
-      
-      formData.append('workflow', JSON.stringify(workflowForSubmit))
-      formData.append('inputs', JSON.stringify({}))
-      
-      console.log('🚀 Exécution workflow Builder avec images uploadées')
-      
-      response = await api.post('/workflow/run', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      try {
+        const uploadResult = await uploadMediaService.uploadMultiple(filesToUpload)
+        
+        if (!uploadResult.success) {
+          throw new Error('Échec de l\'upload des médias')
         }
-      })
-    } else {
-      // Envoi JSON classique sans images
-      const workflowToExecute = {
-        id: customWorkflow.value.id,
-        name: customWorkflow.value.name,
-        description: customWorkflow.value.description,
-        tasks: preparedTasks
+        
+        // Mapper les fichiers uploadés avec leurs IDs
+        uploadResult.uploaded.forEach((mediaInfo, index) => {
+          const originalFile = filesToUpload[index]
+          fileMapping.set(originalFile, mediaInfo.id)
+          console.log(`📝 Mapping créé: ${originalFile.name} -> ${mediaInfo.id}`)
+        })
+        
+        console.log('📦 Réponse upload complète:', uploadResult)
+        console.log(`✅ ${uploadResult.successful} média(s) uploadé(s) avec succès`)
+        
+        if (uploadResult.errors && uploadResult.errors.length > 0) {
+          console.error('❌ Erreurs d\'upload détaillées:', uploadResult.errors)
+          uploadResult.errors.forEach((error, index) => {
+            console.error(`❌ Erreur ${index + 1}:`, JSON.stringify(error, null, 2))
+          })
+        }
+        
+        console.log(`📋 Mapping final:`, Array.from(fileMapping.entries()).map(([file, id]) => ({
+          fileName: file.name,
+          id: id
+        })))
+        
+      } catch (uploadError) {
+        throw new Error(`Erreur lors de l'upload des médias: ${uploadError.message}`)
       }
-      
-      console.log('🚀 Exécution workflow Builder:', workflowToExecute)
-      
-      response = await api.post('/workflow/run', {
-        workflow: workflowToExecute,
-        inputs: {}
+    }
+    
+    // Remplacer les File objects par les IDs des médias
+    const workflowForSubmit = {
+      id: customWorkflow.value.id,
+      name: customWorkflow.value.name,
+      description: customWorkflow.value.description,
+      tasks: preparedTasks.map(task => {
+        const taskCopy = { ...task, input: { ...task.input } }
+        
+        // Pour chaque input qui contient des Files (remplacer par des IDs de médias)
+        Object.keys(taskCopy.input).forEach(key => {
+          const value = taskCopy.input[key]
+          
+          if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
+            // Remplacer les fichiers par leurs IDs de média
+            taskCopy.input[key] = value.map(file => {
+              const mediaId = fileMapping.get(file)
+              console.log(`🔄 Mapping array file to ID: ${file.name} -> ${mediaId}`)
+              if (!mediaId) {
+                console.error(`❌ Pas d'ID trouvé pour le fichier: ${file.name}`)
+                throw new Error(`Mapping manquant pour le fichier: ${file.name}`)
+              }
+              return mediaId
+            })
+          } else if (value instanceof File) {
+            // Remplacer le fichier par son ID de média
+            const mediaId = fileMapping.get(value)
+            console.log(`🔄 Mapping single file to ID: ${value.name} -> ${mediaId}`)
+            if (!mediaId) {
+              console.error(`❌ Pas d'ID trouvé pour le fichier: ${value.name}`)
+              throw new Error(`Mapping manquant pour le fichier: ${value.name}`)
+            }
+            taskCopy.input[key] = mediaId
+          }
+          // Les IDs de médias restent inchangés (déjà sous la bonne forme)
+          // typeof value === 'string' && value.length === 36 -> pas de modification nécessaire
+        })
+        
+        return taskCopy
       })
     }
+    
+    console.log('🚀 Exécution workflow Builder avec IDs des médias:', workflowForSubmit)
+    
+    // Envoi JSON avec les IDs des médias (plus de FormData nécessaire)
+    const response = await api.post('/workflow/run', {
+      workflow: workflowForSubmit,
+      inputs: {}
+    })
     
     // Stocker le résultat dans le store
     workflowStore.lastResult = response.data
@@ -1391,6 +1626,42 @@ async function executeBuilderWorkflow() {
 
 // ========== MÉTHODES EXISTANTES ==========
 
+/**
+ * Gère la sélection de médias pour les inputs de template
+ */
+function onTemplateMediaSelected(inputKey, medias) {
+  console.log(`📸 Médias sélectionnés pour input template ${inputKey}:`, medias)
+  
+  const inputDef = workflowInputs.value[inputKey]
+  
+  if (inputDef.type === 'image') {
+    // Pour un input de type 'image' (singulier)
+    const mediaId = medias.length > 0 ? medias[0].id : null
+    workflowStore.updateInputValue(inputKey, mediaId)
+  } else {
+    // Pour un input de type 'images' (pluriel)
+    const mediaIds = medias.map(media => media.id)
+    workflowStore.updateInputValue(inputKey, mediaIds)
+  }
+}
+
+/**
+ * Gère l'upload de nouveaux médias pour les inputs de template
+ */
+function onTemplateMediaUploaded(inputKey, medias) {
+  console.log(`📤 Nouveaux médias uploadés pour input template ${inputKey}:`, medias)
+  
+  // Les médias sont automatiquement ajoutés au store
+  // On les sélectionne pour l'input
+  onTemplateMediaSelected(inputKey, medias)
+  
+  $q.notify({
+    type: 'positive',
+    message: `${medias.length} média(s) uploadé(s) et sélectionné(s)`,
+    timeout: 2000
+  })
+}
+
 // Méthodes
 function loadTemplate(template) {
   workflowStore.setCurrentWorkflow(template)
@@ -1405,30 +1676,80 @@ function loadTemplate(template) {
   })
 }
 
-function handleImageUpload(files) {
+function handleImageUpload(files, inputKey) {
   if (!files) return
   
-  uploadedImages.value = []
+  const filesArray = Array.isArray(files) ? files : [files]
   
-  Array.from(files).forEach(file => {
-    const url = URL.createObjectURL(file)
-    uploadedImages.value.push({
-      file,
-      url,
-      name: file.name
-    })
-  })
+  // Déterminer le type d'input depuis la définition du workflow
+  const inputDef = workflowInputs.value[inputKey]
   
-  // Passer les fichiers originaux au store (pas de base64 !)
-  const fileObjects = uploadedImages.value.map(img => img.file)
-  workflowStore.updateInputValue('images', fileObjects)
+  if (inputDef && inputDef.type === 'image') {
+    // Pour un input de type 'image' (singulier), on passe le premier fichier directement
+    workflowStore.updateInputValue(inputKey, filesArray[0] || null)
+  } else {
+    // Pour un input de type 'images' (pluriel), on passe un tableau
+    workflowStore.updateInputValue(inputKey, filesArray)
+  }
 }
 
-function removeImage(index) {
+function removeImage(index, inputKey = 'images') {
   uploadedImages.value.splice(index, 1)
+  
   // Mettre à jour avec les fichiers restants
-  const fileObjects = uploadedImages.value.map(img => img.file)
-  workflowStore.updateInputValue('images', fileObjects)
+  if (inputKey === 'image') {
+    // Pour un input de type 'image' (singulier)
+    if (uploadedImages.value.length > 0) {
+      workflowStore.updateInputValue('image', uploadedImages.value[0].file)
+    } else {
+      workflowStore.updateInputValue('image', null)
+    }
+  } else {
+    // Pour un input de type 'images' (pluriel)
+    const fileObjects = uploadedImages.value.map(img => img.file)
+    workflowStore.updateInputValue(inputKey, fileObjects)
+  }
+}
+
+// Fonction pour obtenir les aperçus d'images pour un input spécifique
+function getImagePreviews(inputKey) {
+  const value = inputValues.value[inputKey]
+  if (!value) return []
+  
+  // Si c'est un tableau de fichiers (images multiples)
+  if (Array.isArray(value)) {
+    return value.map((file, idx) => ({
+      url: URL.createObjectURL(file),
+      name: file.name,
+      file: file
+    }))
+  }
+  
+  // Si c'est un seul fichier (image unique)
+  if (value instanceof File) {
+    return [{
+      url: URL.createObjectURL(value),
+      name: value.name,
+      file: value
+    }]
+  }
+  
+  return []
+}
+
+// Fonction pour supprimer une image d'un input spécifique
+function removeImageFromInput(index, inputKey) {
+  const currentValue = inputValues.value[inputKey]
+  
+  if (Array.isArray(currentValue)) {
+    // Pour les images multiples
+    const newValue = [...currentValue]
+    newValue.splice(index, 1)
+    workflowStore.updateInputValue(inputKey, newValue)
+  } else {
+    // Pour l'image unique
+    workflowStore.updateInputValue(inputKey, null)
+  }
 }
 
 async function executeWorkflow() {

@@ -1,4 +1,5 @@
-import { generateVideoFromImage } from '../videoImageGenerator.js';
+import { generateVideoI2V } from '../videoImageGenerator.js';
+import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération de vidéo à partir d'image
@@ -32,6 +33,7 @@ export class GenerateVideoI2VTask {
         model: this.modelName,
         prompt: inputs.prompt?.substring(0, 100) + '...',
         hasSourceImage: !!inputs.image,
+        hasLastImage: !!inputs.lastImage,
         parameters: inputs.parameters
       });
 
@@ -66,6 +68,7 @@ export class GenerateVideoI2VTask {
       
       const result = await generateVideoFromImage({
         image: inputs.image, // Buffer ou URL - sera converti automatiquement
+        lastImage: inputs.lastImage, // Image de fin optionnelle pour transition fluide
         prompt: inputs.prompt,
         numFrames: numFrames,
         aspectRatio: aspectRatio,
@@ -79,16 +82,39 @@ export class GenerateVideoI2VTask {
 
       const videoUrl = result.videoUrl || result;
 
-      global.logWorkflow(`✅ Vidéo I2V générée avec succès`, {
+      global.logWorkflow(`✅ Vidéo générée avec succès`, {
         videoUrl: typeof videoUrl === 'string' ? videoUrl.substring(0, 100) + '...' : 'Video generated',
         duration: generationParams.duration,
         resolution: `${generationParams.width}x${generationParams.height}`
       });
 
+      // Télécharger et sauvegarder la vidéo localement
+      global.logWorkflow(`📥 Téléchargement de la vidéo générée...`);
+      
+      const response = await fetch(videoUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement vidéo: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      global.logWorkflow(`💾 Vidéo sauvegardée localement`, {
+        filename: savedFile.filename,
+        url: savedFile.url,
+        size: `${Math.round(buffer.length / 1024 / 1024)}MB`
+      });
+
       return {
-        video: videoUrl,
+        video: savedFile.url,
+        video_filename: savedFile.filename,
+        external_url: videoUrl, // Garder l'URL originale pour référence
         prompt_used: inputs.prompt,
         source_image: inputs.image,
+        last_image: inputs.lastImage,
         parameters_used: generationParams,
         metadata: {
           duration: generationParams.duration,
