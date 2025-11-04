@@ -141,10 +141,28 @@ export async function editImage({
     console.log(`🖼️  Images: ${images.length}`);
     console.log(`⚙️  Paramètres: aspectRatio=${aspectRatio}, goFast=${goFast}, format=${outputFormat}`);
 
+    // Convertir les Buffers en data URIs si nécessaire
+    const processedImages = images.map((img, index) => {
+      if (Buffer.isBuffer(img)) {
+        console.log(`📦 Conversion de l'image ${index + 1} (Buffer) en data URI...`);
+        const base64 = img.toString('base64');
+        // Déterminer le mimeType (par défaut webp pour les images modernes)
+        return `data:image/webp;base64,${base64}`;
+      }
+      // Si c'est un objet avec buffer et mimeType
+      if (img && typeof img === 'object' && img.buffer) {
+        console.log(`📦 Conversion de l'image ${index + 1} (Object) en data URI...`);
+        const mimeType = img.mimeType || 'image/jpeg';
+        const base64 = img.buffer.toString('base64');
+        return `data:${mimeType};base64,${base64}`;
+      }
+      return img; // Déjà une URL ou data URI
+    });
+
     // Préparer les paramètres pour Replicate
     const input = {
       prompt: prompt,
-      image: images, // Array d'URLs
+      image: processedImages, // Array d'URLs ou data URIs
       aspect_ratio: aspectRatio,
       go_fast: goFast,
       output_format: outputFormat,

@@ -133,12 +133,15 @@ export class GenerateWorkflowTask {
       });
 
       // Modèle Gemini 2.5 Flash pour génération structurée
+      const systemInstruction = "Tu es un générateur de workflows JSON. Tu réponds UNIQUEMENT avec du JSON valide, sans markdown, sans texte d'introduction.";
+      
       const input = {
+        system_instruction: systemInstruction,
         prompt: systemPrompt,
-        system_prompt: "Tu es un générateur de workflows JSON. Tu réponds UNIQUEMENT avec du JSON valide, sans markdown, sans texte d'introduction.",
-        max_tokens: 2000,
+        max_output_tokens: 2000,
         temperature: 0.3, // Moins créatif pour plus de structure
-        top_p: 0.8
+        top_p: 0.8,
+        dynamic_thinking: false
       };
 
       global.logWorkflow('🤖 Appel Gemini pour génération workflow', {

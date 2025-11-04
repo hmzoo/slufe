@@ -37,19 +37,43 @@ export class DescribeImagesTask {
 
       const descriptions = [];
       const analysisType = inputs.analysisType || 'comprehensive';
-      const language = inputs.language || 'fr';
+      const language = inputs.language || 'en'; // Anglais par défaut
+      
+      // Utiliser la question personnalisée si fournie, sinon prompt par défaut
+      const customPrompt = inputs.question || `Describe this image in ${language === 'fr' ? 'French' : 'English'}.`;
 
       // Traitement de chaque image
       for (let i = 0; i < inputs.images.length; i++) {
-        const image = inputs.images[i];
+        const imageObj = inputs.images[i];
+        
+        // Extraire le buffer ou l'URL de l'objet image, et conserver le mimeType
+        let imageData = imageObj;
+        let mimeType = 'image/jpeg'; // Par défaut
+        
+        if (imageObj && typeof imageObj === 'object') {
+          if (imageObj.buffer) {
+            imageData = imageObj.buffer;  // Extraire le Buffer
+            mimeType = imageObj.mimeType || 'image/jpeg';  // Conserver le mimeType
+          } else if (imageObj.url) {
+            imageData = imageObj.url;  // Extraire l'URL
+          }
+        }
+        
+        // Si c'est un Buffer, le convertir en data URI avec le bon mimeType
+        if (Buffer.isBuffer(imageData)) {
+          const base64 = imageData.toString('base64');
+          imageData = `data:${mimeType};base64,${base64}`;
+        }
         
         try {
           global.logWorkflow(`📸 Analyse de l'image ${i + 1}/${inputs.images.length}`, {
-            image: typeof image === 'string' ? image.substring(0, 50) + '...' : 'Buffer'
+            image: typeof imageData === 'string' ? imageData.substring(0, 50) + '...' : 'Buffer',
+            mimeType: mimeType,
+            customPrompt: customPrompt.substring(0, 50) + '...'
           });
 
-          // Appel du service d'analyse d'images existant
-          const description = await analyzeImage(image, `Describe this image in ${language === 'fr' ? 'French' : 'English'}.`);
+          // Appel du service d'analyse d'images existant avec le prompt personnalisé
+          const description = await analyzeImage(imageData, customPrompt);
           
           const analysisResult = {
             description: description,
@@ -62,7 +86,7 @@ export class DescribeImagesTask {
 
           descriptions.push({
             index: i,
-            image: image,
+            image: imageObj,  // Référence à l'objet image original
             description: analysisResult.description,
             objects: analysisResult.objects || [],
             colors: analysisResult.colors || [],
@@ -79,7 +103,7 @@ export class DescribeImagesTask {
           // Ajouter une description d'erreur pour cette image
           descriptions.push({
             index: i,
-            image: image,
+            image: imageObj,  // Référence à l'objet image original
             description: `Erreur lors de l'analyse: ${error.message}`,
             objects: [],
             colors: [],
@@ -196,7 +220,7 @@ export class DescribeImagesTask {
         language: { 
           type: 'string', 
           required: false, 
-          default: 'fr',
+          default: 'en', // Anglais par défaut pour meilleure compatibilité avec modèles vidéo
           enum: ['fr', 'en', 'es', 'de', 'it'],
           description: 'Langue des descriptions' 
         },

@@ -168,7 +168,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
         tasks: [
           {
             id: "analyze1",
-            type: "analyze_image", 
+            type: "describe_images",
             input: {
               images: "{{inputs.images}}",
               question: "{{inputs.question}}"
@@ -205,7 +205,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
         tasks: [
           {
             id: "video1",
-            type: "generate_video",
+            type: "generate_video_t2v",
             input: {
               prompt: "{{inputs.prompt}}",
               duration: "{{inputs.duration}}"
@@ -369,14 +369,59 @@ export const useWorkflowStore = defineStore('workflow', () => {
     lastResult.value = null
 
     try {
-      const payload = {
-        workflow: currentWorkflow.value.workflow,
-        inputs: currentWorkflow.value.inputValues
+      // Déterminer si on a des images à uploader
+      const hasImages = currentWorkflow.value.inputValues.images && 
+                        Array.isArray(currentWorkflow.value.inputValues.images) &&
+                        currentWorkflow.value.inputValues.images.length > 0
+
+      let response
+
+      if (hasImages) {
+        // Utiliser FormData pour multipart/form-data avec fichiers
+        const formData = new FormData()
+        
+        // Ajouter le workflow en JSON
+        formData.append('workflow', JSON.stringify(currentWorkflow.value.workflow))
+        
+        // Ajouter tous les inputs non-images dans un objet JSON 'inputs'
+        const nonImageInputs = {}
+        Object.keys(currentWorkflow.value.inputValues).forEach(key => {
+          if (key !== 'images') {
+            nonImageInputs[key] = currentWorkflow.value.inputValues[key]
+          }
+        })
+        
+        // Envoyer les inputs comme JSON
+        formData.append('inputs', JSON.stringify(nonImageInputs))
+        
+        // Ajouter les fichiers images directement (ce sont des objets File)
+        const images = currentWorkflow.value.inputValues.images
+        for (let i = 0; i < images.length; i++) {
+          formData.append('images', images[i]) // Ajouter le File directement
+        }
+
+        console.log('🚀 Exécution workflow avec images (multipart/form-data)', {
+          workflow: currentWorkflow.value.workflow.id,
+          inputs: Object.keys(nonImageInputs),
+          imageCount: images.length
+        })
+
+        response = await api.post('/workflow/run', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
+      } else {
+        // Envoi JSON classique sans images
+        const payload = {
+          workflow: currentWorkflow.value.workflow,
+          inputs: currentWorkflow.value.inputValues
+        }
+
+        console.log('🚀 Exécution workflow:', payload)
+
+        response = await api.post('/workflow/run', payload)
       }
-
-      console.log('🚀 Exécution workflow:', payload)
-
-      const response = await api.post('/workflow/run', payload)
 
       if (response.data.success) {
         lastResult.value = response.data

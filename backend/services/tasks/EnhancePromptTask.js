@@ -16,15 +16,26 @@ export class EnhancePromptTask {
    * @param {string} inputs.prompt - Prompt à améliorer
    * @param {string} [inputs.style] - Style souhaité (optionnel)
    * @param {string} [inputs.language] - Langue (optionnel, défaut: 'fr')
-   * @param {string} [inputs.enhancementLevel] - Niveau d'amélioration (optionnel)
+   * @param {string} [inputs.targetType] - Type de génération cible: 'image', 'edit', 'video' (optionnel)
+   * @param {string} [inputs.imageDescription1] - Description de l'image 1 pour contexte (optionnel)
+   * @param {string} [inputs.imageDescription2] - Description de l'image 2 pour contexte (optionnel)
+   * @param {number} [inputs.imageCount] - Nombre d'images dans le contexte (optionnel)
    * @returns {Object} Résultats avec le prompt amélioré
    */
   async execute(inputs) {
     try {
+      // Normaliser le nom du champ prompt
+      // Accepter 'inputText', 'enhancePrompt' ou 'prompt' (compatibilité workflow Builder)
+      if (!inputs.prompt) {
+        inputs.prompt = inputs.inputText || inputs.enhancePrompt || '';
+      }
+
       global.logWorkflow(`🎯 Amélioration du prompt: "${inputs.prompt}"`, {
         model: this.modelName,
         style: inputs.style,
-        language: inputs.language || 'fr'
+        language: inputs.language || 'fr',
+        targetType: inputs.targetType || 'image',
+        hasImageDescriptions: !!(inputs.imageDescription1 || inputs.imageDescription2)
       });
 
       // Validation des entrées
@@ -32,22 +43,35 @@ export class EnhancePromptTask {
         throw new Error('Le prompt est requis et doit être une chaîne de caractères');
       }
 
-      // Préparation des paramètres pour le service d'amélioration
-      const enhancementParams = {
-        prompt: inputs.prompt,
-        style: inputs.style || 'réaliste',
-        language: inputs.language || 'fr',
-        enhancementLevel: inputs.enhancementLevel || 'medium',
-        addDetails: true,
-        optimizeForAI: true
-      };
+      // Déterminer si on est en mode édition d'images
+      const hasImages = inputs.targetType === 'edit' || 
+                        inputs.imageCount > 0 || 
+                        !!(inputs.imageDescription1 || inputs.imageDescription2);
+      
+      const imageCount = inputs.imageCount || 
+                        (inputs.imageDescription1 && inputs.imageDescription2 ? 2 : 
+                         inputs.imageDescription1 ? 1 : 0);
+
+      // Construire le contexte avec descriptions d'images si disponibles
+      let contextPrompt = inputs.prompt;
+      if (inputs.imageDescription1 || inputs.imageDescription2) {
+        let imageContext = '\n\nContext des images:\n';
+        if (inputs.imageDescription1) {
+          imageContext += `Image 1: ${inputs.imageDescription1}\n`;
+        }
+        if (inputs.imageDescription2) {
+          imageContext += `Image 2: ${inputs.imageDescription2}\n`;
+        }
+        contextPrompt = inputs.prompt + imageContext;
+      }
 
       // Appel du service d'amélioration de prompts existant
-      const enhancedPrompt = await enhancePrompt(inputs.prompt, {
-        hasImages: false,
-        imageCount: 0,
+      const enhancedPrompt = await enhancePrompt(contextPrompt, {
+        hasImages: hasImages,
+        imageCount: imageCount,
         style: inputs.style,
-        language: inputs.language
+        language: inputs.language,
+        targetType: inputs.targetType || 'image'
       });
 
       global.logWorkflow(`✅ Prompt amélioré avec succès`, {

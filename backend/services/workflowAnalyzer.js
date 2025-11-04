@@ -172,7 +172,7 @@ Analyze and respond with the JSON workflow recommendation:`;
 
     console.log('📤 Prompt envoyé à Gemini (Replicate):', userPrompt);
 
-    // Appel à Gemini via Replicate
+    // Appel à Gemini via Replicate avec system_instruction
     const output = await replicate.run(
       'google/gemini-2.5-flash',
       {

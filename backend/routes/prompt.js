@@ -9,7 +9,7 @@ const router = express.Router();
  */
 router.post('/enhance', async (req, res) => {
   try {
-    const { prompt, hasImages, imageCount } = req.body;
+    const { prompt, hasImages, imageCount, targetType } = req.body;
 
     // Validation
     if (!prompt) {
@@ -43,11 +43,13 @@ router.post('/enhance', async (req, res) => {
     // Préparer les options
     const options = {
       hasImages: hasImages === true || hasImages === 'true',
-      imageCount: imageCount ? parseInt(imageCount) : 0
+      imageCount: imageCount ? parseInt(imageCount) : 0,
+      targetType: targetType || 'image' // Par défaut : génération d'image
     };
 
     console.log('📝 Amélioration de prompt:', {
       prompt: prompt.substring(0, 50) + '...',
+      targetType: options.targetType,
       hasImages: options.hasImages,
       imageCount: options.imageCount
     });
@@ -58,14 +60,21 @@ router.post('/enhance', async (req, res) => {
       
       // Réponse mock adaptée selon le contexte
       let mockEnhanced;
-      if (options.hasImages) {
+      let context = 'generation';
+      
+      if (options.targetType === 'video') {
+        mockEnhanced = `Vidéo dynamique : ${prompt}. Mouvements fluides, transitions cinématographiques, caméra stable avec zoom progressif. Éclairage naturel évolutif, scène captivante du début à la fin, haute qualité 4K.`;
+        context = 'video';
+      } else if (options.targetType === 'edit' && options.hasImages && options.imageCount > 0) {
         if (options.imageCount === 1) {
           mockEnhanced = `Modifiez l'image pour : ${prompt}. Préservez les détails importants de l'image originale tout en appliquant les transformations demandées. Style cohérent, transitions naturelles, rendu professionnel.`;
         } else {
           mockEnhanced = `En utilisant les ${options.imageCount} images fournies : ${prompt}. Image 1 sert de référence principale. Intégrez harmonieusement les éléments des différentes images. Composition équilibrée, style unifié, résultat cohérent.`;
         }
+        context = 'edition';
       } else {
         mockEnhanced = `Créez une image détaillée et de haute qualité représentant ${prompt}. Style photographique professionnel, éclairage naturel et doux, composition harmonieuse et équilibrée. Rendu réaliste avec attention aux détails, profondeur de champ cinématographique, couleurs vibrantes et saturées.`;
+        context = 'generation';
       }
       
       return res.json({
@@ -73,7 +82,8 @@ router.post('/enhance', async (req, res) => {
         enhanced: mockEnhanced,
         original: prompt,
         mock: true,
-        context: options.hasImages ? 'edition' : 'generation',
+        context: context,
+        targetType: options.targetType,
         message: 'Réponse mock - Configurez REPLICATE_API_TOKEN pour utiliser l\'IA réelle',
       });
     }
@@ -86,7 +96,8 @@ router.post('/enhance', async (req, res) => {
       enhanced: enhanced,
       original: prompt,
       mock: false,
-      context: options.hasImages ? 'edition' : 'generation',
+      context: options.targetType === 'video' ? 'video' : (options.targetType === 'edit' && options.hasImages ? 'edition' : 'generation'),
+      targetType: options.targetType,
     });
   } catch (error) {
     console.error('❌ Erreur dans /api/prompt/enhance:', error);
@@ -127,7 +138,7 @@ router.get('/status', (req, res) => {
     success: true,
     service: 'promptEnhancer',
     configured: configured,
-    model: 'google/gemini-2.0-flash-exp',
+    model: 'google/gemini-2.5-flash',
     status: configured ? 'ready' : 'not_configured',
     message: configured 
       ? 'Service d\'amélioration de prompt opérationnel'

@@ -14,14 +14,32 @@ export class GenerateVideoT2VTask {
    * Exécute la tâche de génération de vidéo text-to-video
    * @param {Object} inputs - Entrées de la tâche
    * @param {string} inputs.prompt - Description de la vidéo à générer
+   * @param {number} [inputs.numFrames] - Nombre de frames
+   * @param {string} [inputs.aspectRatio] - Format vidéo (16:9 ou 9:16)
+   * @param {string} [inputs.loraWeightsTransformer] - URL LoRA transformer
+   * @param {number} [inputs.loraScaleTransformer] - Scale LoRA transformer
+   * @param {string} [inputs.loraWeightsTransformer2] - URL LoRA transformer 2
+   * @param {number} [inputs.loraScaleTransformer2] - Scale LoRA transformer 2
    * @param {Object} [inputs.parameters] - Paramètres du modèle
    * @returns {Object} Résultats avec la vidéo générée
    */
   async execute(inputs) {
     try {
+      // Récupérer les paramètres LoRA depuis inputs directement (pas depuis inputs.parameters)
+      const loraWeightsTransformer = inputs.loraWeightsTransformer || null;
+      const loraScaleTransformer = inputs.loraScaleTransformer ?? 1.0;
+      const loraWeightsTransformer2 = inputs.loraWeightsTransformer2 || null;
+      const loraScaleTransformer2 = inputs.loraScaleTransformer2 ?? 1.0;
+      
       global.logWorkflow(`🎬 Génération vidéo T2V`, {
         model: this.modelName,
         prompt: inputs.prompt?.substring(0, 100) + '...',
+        numFrames: inputs.numFrames,
+        aspectRatio: inputs.aspectRatio || '16:9',
+        loraWeightsTransformer: loraWeightsTransformer ? loraWeightsTransformer.substring(0, 60) + '...' : 'none',
+        loraScaleTransformer,
+        loraWeightsTransformer2: loraWeightsTransformer2 ? loraWeightsTransformer2.substring(0, 60) + '...' : 'none',
+        loraScaleTransformer2,
         parameters: inputs.parameters
       });
 
@@ -34,52 +52,59 @@ export class GenerateVideoT2VTask {
       // Préparation des paramètres
       const generationParams = {
         prompt: inputs.prompt,
+        numFrames: inputs.numFrames || 81,
+        aspectRatio: inputs.aspectRatio || '16:9',
+        loraWeightsTransformer,
+        loraScaleTransformer,
+        loraWeightsTransformer2,
+        loraScaleTransformer2,
         ...this.getDefaultParameters(),
         ...inputs.parameters
       };
 
-      global.logWorkflow(`⚙️ Paramètres de génération vidéo T2V`, generationParams);
+      global.logWorkflow(`⚙️ Paramètres de génération vidéo T2V`, {
+        ...generationParams,
+        loraWeightsTransformer: loraWeightsTransformer ? loraWeightsTransformer.substring(0, 60) + '...' : 'none',
+        loraWeightsTransformer2: loraWeightsTransformer2 ? loraWeightsTransformer2.substring(0, 60) + '...' : 'none'
+      });
 
       // Appel du service de génération vidéo existant
-        const result = await generateVideo({
+      const result = await generateVideo({
         prompt: inputs.prompt,
-        duration: generationParams.duration,
-        fps: generationParams.fps,
-        width: generationParams.width,
-        height: generationParams.height,
-        style: generationParams.style,
-        qualityPreset: generationParams.quality,
-        cameraMovement: generationParams.camera_movement,
-        motionIntensity: generationParams.motion_intensity
+        numFrames: generationParams.numFrames,
+        aspectRatio: generationParams.aspectRatio,
+        loraWeightsTransformer,
+        loraScaleTransformer,
+        loraWeightsTransformer2,
+        loraScaleTransformer2
       });
 
       global.logWorkflow(`✅ Vidéo T2V générée avec succès`, {
         videoUrl: result.videoUrl?.substring(0, 100) + '...',
-        duration: generationParams.duration,
-        resolution: `${generationParams.width}x${generationParams.height}`,
+        numFrames: generationParams.numFrames,
+        hasLoRA: !!(loraWeightsTransformer || loraWeightsTransformer2),
         processingTime: result.processingTime
       });
 
       return {
         video: result.videoUrl,
         prompt_used: inputs.prompt,
-        parameters_used: generationParams,
+        parameters_used: {
+          numFrames: generationParams.numFrames,
+          loraWeightsTransformer,
+          loraScaleTransformer,
+          loraWeightsTransformer2,
+          loraScaleTransformer2
+        },
         metadata: {
-          duration: generationParams.duration,
-          fps: generationParams.fps,
-          width: generationParams.width,
-          height: generationParams.height,
-          resolution: `${generationParams.width}x${generationParams.height}`,
-          style: generationParams.style,
-          camera_movement: generationParams.camera_movement,
-          motion_intensity: generationParams.motion_intensity,
+          numFrames: generationParams.numFrames,
           model: this.modelName,
-          generation_type: 'text_to_video'
+          generation_type: 'text_to_video',
+          lora_applied: !!(loraWeightsTransformer || loraWeightsTransformer2)
         },
         processing_time: result.processingTime || 0,
         video_id: result.id || `t2v_${Date.now()}`,
-        frames_generated: Math.floor(generationParams.duration * generationParams.fps),
-        estimated_file_size: this.estimateFileSize(generationParams)
+        frames_generated: generationParams.numFrames
       };
 
     } catch (error) {
@@ -166,7 +191,46 @@ export class GenerateVideoT2VTask {
       errors.push('Le prompt ne peut pas dépasser 2000 caractères');
     }
 
-    // Validation des paramètres optionnels
+    // Validation du numFrames
+    if (inputs.numFrames !== undefined && inputs.numFrames !== null) {
+      const validFrames = [81, 121];
+      if (!validFrames.includes(inputs.numFrames)) {
+        errors.push('numFrames doit être 81 ou 121');
+      }
+    }
+
+    // Validation de l'aspect ratio
+    if (inputs.aspectRatio !== undefined && inputs.aspectRatio !== null) {
+      const validRatios = ['16:9', '9:16'];
+      if (!validRatios.includes(inputs.aspectRatio)) {
+        errors.push('aspectRatio doit être "16:9" ou "9:16"');
+      }
+    }
+
+    // Validation des paramètres LoRA
+    if (inputs.loraWeightsTransformer && typeof inputs.loraWeightsTransformer !== 'string') {
+      errors.push('loraWeightsTransformer doit être une URL (chaîne de caractères)');
+    }
+    
+    if (inputs.loraScaleTransformer !== undefined && inputs.loraScaleTransformer !== null) {
+      const scale = parseFloat(inputs.loraScaleTransformer);
+      if (isNaN(scale) || scale < 0 || scale > 2) {
+        errors.push('loraScaleTransformer doit être entre 0 et 2');
+      }
+    }
+    
+    if (inputs.loraWeightsTransformer2 && typeof inputs.loraWeightsTransformer2 !== 'string') {
+      errors.push('loraWeightsTransformer2 doit être une URL (chaîne de caractères)');
+    }
+    
+    if (inputs.loraScaleTransformer2 !== undefined && inputs.loraScaleTransformer2 !== null) {
+      const scale = parseFloat(inputs.loraScaleTransformer2);
+      if (isNaN(scale) || scale < 0 || scale > 2) {
+        errors.push('loraScaleTransformer2 doit être entre 0 et 2');
+      }
+    }
+
+    // Validation des paramètres optionnels (anciens paramètres conservés pour compatibilité)
     if (inputs.parameters) {
       const params = inputs.parameters;
 
@@ -236,6 +300,46 @@ export class GenerateVideoT2VTask {
           description: 'Description détaillée de la vidéo à générer',
           minLength: 5,
           maxLength: 2000
+        },
+        numFrames: {
+          type: 'integer',
+          required: false,
+          enum: [81, 121],
+          default: 81,
+          description: 'Nombre de frames à générer (81 = ~3-5s, 121 = ~5-8s)'
+        },
+        aspectRatio: {
+          type: 'string',
+          required: false,
+          enum: ['16:9', '9:16'],
+          default: '16:9',
+          description: 'Format de la vidéo (16:9 = paysage, 9:16 = portrait)'
+        },
+        loraWeightsTransformer: {
+          type: 'string',
+          required: false,
+          description: 'URL du modèle LoRA transformer (premier LoRA)'
+        },
+        loraScaleTransformer: {
+          type: 'number',
+          required: false,
+          minimum: 0,
+          maximum: 2,
+          default: 1.0,
+          description: 'Poids du premier LoRA (0-2, où 1.0 est l\'intensité normale)'
+        },
+        loraWeightsTransformer2: {
+          type: 'string',
+          required: false,
+          description: 'URL du modèle LoRA transformer 2 (second LoRA)'
+        },
+        loraScaleTransformer2: {
+          type: 'number',
+          required: false,
+          minimum: 0,
+          maximum: 2,
+          default: 1.0,
+          description: 'Poids du second LoRA (0-2, où 1.0 est l\'intensité normale)'
         },
         parameters: {
           type: 'object',

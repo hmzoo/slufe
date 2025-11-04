@@ -20,6 +20,14 @@ export class GenerateVideoI2VTask {
    */
   async execute(inputs) {
     try {
+      // Normaliser l'image : si c'est un array, prendre le premier élément
+      if (Array.isArray(inputs.image) && inputs.image.length > 0) {
+        global.logWorkflow(`📎 Normalisation image: array → premier élément`, {
+          arrayLength: inputs.image.length
+        });
+        inputs.image = inputs.image[0];
+      }
+
       global.logWorkflow(`🎞️ Génération vidéo I2V`, {
         model: this.modelName,
         prompt: inputs.prompt?.substring(0, 100) + '...',
@@ -38,19 +46,35 @@ export class GenerateVideoI2VTask {
         prompt: inputs.prompt,
         firstFrame: inputs.image,
         ...this.getDefaultParameters(),
-        ...inputs.parameters
+        ...inputs.parameters,
+        // Paramètres LoRA venant directement des inputs
+        loraWeightsTransformer: inputs.loraWeightsTransformer || inputs.parameters?.loraWeightsTransformer,
+        loraScaleTransformer: inputs.loraScaleTransformer ?? inputs.parameters?.loraScaleTransformer ?? 1.0,
+        loraWeightsTransformer2: inputs.loraWeightsTransformer2 || inputs.parameters?.loraWeightsTransformer2,
+        loraScaleTransformer2: inputs.loraScaleTransformer2 ?? inputs.parameters?.loraScaleTransformer2 ?? 1.0,
       };
 
       global.logWorkflow(`⚙️ Paramètres de génération vidéo`, generationParams);
 
       // Appel du service de génération vidéo existant
+      // Note: Le service attend "image" (sera converti en buffer si nécessaire)
+      // puis utilisé comme "startImage" pour Replicate
+      
+      // numFrames: 81 (rapide) ou 121 (long) - défaut 81
+      const numFrames = generationParams.numFrames || 81;
+      const aspectRatio = inputs.aspectRatio || generationParams.aspectRatio || '16:9';
+      
       const result = await generateVideoFromImage({
-        images: [inputs.image], // Le service existant attend un array
-        firstFrame: inputs.image,
+        image: inputs.image, // Buffer ou URL - sera converti automatiquement
         prompt: inputs.prompt,
-        duration: generationParams.duration,
-        fps: generationParams.fps,
-        motionStrength: generationParams.motion_strength
+        numFrames: numFrames,
+        aspectRatio: aspectRatio,
+        framesPerSecond: generationParams.fps,
+        // Paramètres LoRA (optionnels)
+        loraWeightsTransformer: generationParams.loraWeightsTransformer,
+        loraScaleTransformer: generationParams.loraScaleTransformer,
+        loraWeightsTransformer2: generationParams.loraWeightsTransformer2,
+        loraScaleTransformer2: generationParams.loraScaleTransformer2,
       });
 
       const videoUrl = result.videoUrl || result;
@@ -98,7 +122,7 @@ export class GenerateVideoI2VTask {
    */
   getDefaultParameters() {
     return {
-      duration: 3,
+      numFrames: 81, // 81 = rapide, 121 = long
       fps: 24,
       width: 1024,
       height: 576,
@@ -132,17 +156,34 @@ export class GenerateVideoI2VTask {
     // Validation de l'image source
     if (!inputs.image) {
       errors.push('L\'image source est requise pour la génération I2V');
-    } else if (typeof inputs.image !== 'string') {
-      errors.push('L\'image source doit être une URL ou un chemin');
+    } else if (Array.isArray(inputs.image)) {
+      // Si c'est encore un array à ce stade, c'est qu'il est vide
+      errors.push('L\'image source est requise (tableau vide reçu)');
+    } else if (typeof inputs.image !== 'string' && (!inputs.image.buffer || !Buffer.isBuffer(inputs.image.buffer))) {
+      // Accepter string (URL) OU objet buffer {buffer, mimeType, ...}
+      errors.push('L\'image source doit être une URL, un chemin ou un buffer d\'image');
+    }
+
+    // Validation du format vidéo (niveau inputs)
+    if (inputs.aspectRatio !== undefined && inputs.aspectRatio !== null) {
+      const validRatios = ['16:9', '9:16'];
+      if (!validRatios.includes(inputs.aspectRatio)) {
+        errors.push('aspectRatio doit être "16:9" ou "9:16"');
+      }
     }
 
     // Validation des paramètres optionnels
     if (inputs.parameters) {
       const params = inputs.parameters;
 
-      // Validation de la durée
-      if (params.duration && (params.duration < 1 || params.duration > 30)) {
-        errors.push('La durée doit être entre 1 et 30 secondes');
+      // Validation du nombre d'images
+      if (params.numFrames && params.numFrames !== 81 && params.numFrames !== 121) {
+        errors.push('numFrames doit être 81 (rapide) ou 121 (long)');
+      }
+
+      // Validation du format vidéo
+      if (params.aspectRatio && !['16:9', '9:16'].includes(params.aspectRatio)) {
+        errors.push('aspectRatio doit être "16:9" ou "9:16"');
       }
 
       // Validation du FPS
@@ -210,12 +251,17 @@ export class GenerateVideoI2VTask {
           required: false,
           description: 'Paramètres de génération vidéo',
           properties: {
-            duration: { 
-              type: 'number', 
-              default: 3, 
-              minimum: 1, 
-              maximum: 30,
-              description: 'Durée de la vidéo en secondes' 
+            numFrames: { 
+              type: 'integer', 
+              default: 81, 
+              enum: [81, 121],
+              description: 'Nombre d\'images (81 = rapide ~3-5s, 121 = long ~5-8s)' 
+            },
+            aspectRatio: {
+              type: 'string',
+              default: '16:9',
+              enum: ['16:9', '9:16'],
+              description: 'Format de la vidéo (16:9 = paysage, 9:16 = portrait)'
             },
             fps: { 
               type: 'integer', 
@@ -266,6 +312,30 @@ export class GenerateVideoI2VTask {
               default: 'medium',
               enum: ['low', 'medium', 'high'],
               description: 'Niveau de stabilité temporelle' 
+            },
+            loraWeightsTransformer: {
+              type: 'string',
+              required: false,
+              description: 'URL du modèle LoRA transformer (ex: https://replicate.delivery/...)'
+            },
+            loraScaleTransformer: {
+              type: 'number',
+              default: 1.0,
+              minimum: 0.0,
+              maximum: 2.0,
+              description: 'Poids du LoRA transformer (0.0-2.0, défaut 1.0)'
+            },
+            loraWeightsTransformer2: {
+              type: 'string',
+              required: false,
+              description: 'URL du second modèle LoRA transformer (optionnel)'
+            },
+            loraScaleTransformer2: {
+              type: 'number',
+              default: 1.0,
+              minimum: 0.0,
+              maximum: 2.0,
+              description: 'Poids du second LoRA transformer (0.0-2.0, défaut 1.0)'
             }
           }
         }

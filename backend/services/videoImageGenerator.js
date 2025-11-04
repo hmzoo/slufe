@@ -104,13 +104,24 @@ export async function generateVideoFromImage(params) {
   let detectedAspectRatio = params.aspectRatio;
   let imageProcessingInfo = null;
 
+  // Extraire le buffer si l'image est un objet {buffer, mimeType, ...}
+  let imageBuffer = params.image;
+  if (params.image && typeof params.image === 'object' && params.image.buffer) {
+    imageBuffer = params.image.buffer;
+  }
+
+  let lastImageBuffer = params.lastImage;
+  if (params.lastImage && typeof params.lastImage === 'object' && params.lastImage.buffer) {
+    lastImageBuffer = params.lastImage.buffer;
+  }
+
   // Si image est un Buffer, la préparer pour la vidéo
-  if (Buffer.isBuffer(params.image)) {
+  if (Buffer.isBuffer(imageBuffer)) {
     console.log('🖼️  Préparation de l\'image de départ...');
     
-    const images = [params.image];
-    if (params.lastImage && Buffer.isBuffer(params.lastImage)) {
-      images.push(params.lastImage);
+    const images = [imageBuffer];
+    if (lastImageBuffer && Buffer.isBuffer(lastImageBuffer)) {
+      images.push(lastImageBuffer);
     }
     
     // Préparer les images avec auto-détection du format
@@ -207,6 +218,10 @@ export async function generateVideoFromImage(params) {
     resolution: input.resolution,
     fps: input.frames_per_second,
     hasLastImage: !!input.last_image,
+    loraWeightsTransformer: input.lora_weights_transformer || 'none',
+    loraScaleTransformer: input.lora_scale_transformer,
+    loraWeightsTransformer2: input.lora_weights_transformer_2 || 'none',
+    loraScaleTransformer2: input.lora_scale_transformer_2,
   });
 
   console.log('⏱️  Timeout: 10 minutes maximum (modèle de génération de vidéo)');

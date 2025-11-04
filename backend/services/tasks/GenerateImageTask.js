@@ -50,18 +50,31 @@ export class GenerateImageTask {
 
       global.logWorkflow(`⚙️ Paramètres de génération`, generationParams);
 
+      // Déterminer l'aspect ratio à utiliser
+      let aspectRatio;
+      if (inputs.aspectRatio) {
+        // Si aspectRatio est fourni directement dans les inputs
+        aspectRatio = inputs.aspectRatio;
+      } else if (generationParams.width && generationParams.height) {
+        // Sinon calculer depuis width/height
+        aspectRatio = this.getAspectRatioFromDimensions(generationParams.width, generationParams.height);
+      } else {
+        // Par défaut
+        aspectRatio = '1:1';
+      }
+
       // Appel du service de génération d'images existant
       const imageUrl = await generateImage({
         prompt: inputs.prompt,
         guidance: generationParams.guidance_scale,
         numInferenceSteps: generationParams.steps,
-        aspectRatio: this.getAspectRatioFromDimensions(generationParams.width, generationParams.height),
+        aspectRatio: aspectRatio,
         seed: generationParams.seed
       });
 
       global.logWorkflow(`✅ Image générée avec succès`, {
         imageUrl: imageUrl?.substring(0, 100) + '...',
-        size: `${generationParams.width}x${generationParams.height}`
+        aspectRatio: aspectRatio
       });
 
       return {

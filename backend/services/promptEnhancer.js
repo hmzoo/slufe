@@ -19,7 +19,7 @@ const replicate = new Replicate({
  */
 export async function enhancePrompt(inputText, options = {}) {
   try {
-    const { hasImages = false, imageCount = 0 } = options;
+    const { hasImages = false, imageCount = 0, targetType = 'image' } = options;
     
     if (!inputText || inputText.trim() === '') {
       throw new Error('Le prompt ne peut pas être vide');
@@ -31,44 +31,73 @@ export async function enhancePrompt(inputText, options = {}) {
 
     console.log('📝 Amélioration du prompt avec Gemini 2.5 Flash...');
     console.log('Original:', inputText);
-    console.log('Contexte:', hasImages ? `Édition (${imageCount} image(s))` : 'Génération');
+    console.log('Type cible:', targetType);
+    console.log('Has images:', hasImages);
+    console.log('Image count:', imageCount);
 
     // Adapter l'instruction système selon le contexte - TOUJOURS EN ANGLAIS pour Qwen
     let systemInstruction;
-    let userPrompt;
+    let userPrompt = inputText; // Utiliser directement le prompt utilisateur
     
-    if (hasImages) {
-      if (imageCount === 1) {
-        systemInstruction = `You are an expert in AI image editing prompts for the Qwen-Image-Edit-Plus model. Enhance prompts to be precise and clear for image editing. Focus on transformations, modifications, and desired results.
+    // Sélection selon le type cible (priorité au targetType)
+    if (targetType === 'video') {
+      // Génération de vidéo
+      systemInstruction = `You are an expert in AI video generation prompts for the Wan-2 video model.
 
-Key guidelines for Qwen model:
+Your task: Enhance the user's prompt to describe dynamic scenes, movements, and temporal elements for high-quality video generation.
+
+Key guidelines:
+- Use clear, descriptive English
+- Describe movements and actions explicitly (camera panning, object moving, character walking, etc.)
+- Include temporal flow (beginning to end, smooth transition, dynamic motion)
+- Mention lighting changes if relevant (sunrise to sunset, flickering lights)
+- Specify camera movements (zoom in, pan left, tilt up, steady shot)
+- Add quality keywords (smooth motion, cinematic, fluid animation, high frame rate)
+- Describe the scene evolution over time
+- Be concise but descriptive (aim for 20-40 words)
+
+Return ONLY the enhanced prompt in English, nothing else.`;
+      
+    } else if (targetType === 'edit' && hasImages && imageCount > 0) {
+      // Édition d'image (uniquement si images réellement présentes)
+      if (imageCount === 1) {
+        systemInstruction = `You are an expert in AI image editing prompts for the Qwen-Image-Edit-Plus model.
+
+Your task: Enhance the user's prompt to be precise and clear for image editing. Focus on transformations, modifications, and desired results.
+
+Key guidelines:
 - Use clear, descriptive English
 - Mention specific visual elements
 - Include lighting and atmosphere details
 - Specify composition and framing
 - Add quality keywords like "highly detailed", "professional", "cinematic"
 
-Return ONLY the enhanced prompt in English, nothing else.`;
-        
-        userPrompt = `The user has uploaded 1 image and wants to edit it. Original prompt: "${inputText}"\n\nEnhanced prompt:`;
-      } else {
-        systemInstruction = `You are an expert in AI multi-image editing prompts for the Qwen-Image-Edit-Plus model. Enhance prompts for combining, merging, or transferring elements between images. Use clear image references (image 1, image 2).
+Context: The user has uploaded 1 image and wants to edit it.
 
-Key guidelines for Qwen model:
+Return ONLY the enhanced prompt in English, nothing else.`;
+      } else {
+        systemInstruction = `You are an expert in AI multi-image editing prompts for the Qwen-Image-Edit-Plus model.
+
+Your task: Enhance the user's prompt for combining, merging, or transferring elements between images. Use clear image references (image 1, image 2).
+
+Key guidelines:
 - Use clear, descriptive English
 - Reference images explicitly (image 1, image 2)
 - Describe the desired combination/transfer
 - Include style and atmosphere details
 - Add quality keywords
 
+Context: The user has uploaded ${imageCount} images.
+
 Return ONLY the enhanced prompt in English, nothing else.`;
-        
-        userPrompt = `The user has uploaded ${imageCount} images. Original prompt: "${inputText}"\n\nEnhanced prompt:`;
       }
     } else {
-      systemInstruction = `You are an expert in AI image generation prompts for the Qwen-Image model. Enhance prompts to be precise, detailed, and optimized for high-quality results.
+      // Génération d'image (par défaut)
+      systemInstruction = `You are an expert in AI image generation prompts for the Qwen-Image model.
 
-Key guidelines for Qwen model:
+Your task: Enhance the user's prompt to be precise, detailed, and optimized for high-quality results.
+
+Key guidelines:
 - Use clear, descriptive English
 - Include specific visual elements
 - Mention lighting (golden hour, studio lighting, natural light, etc.)
@@ -79,20 +108,21 @@ Key guidelines for Qwen model:
 - Be concise but descriptive (aim for 15-30 words)
 
 Return ONLY the enhanced prompt in English, nothing else.`;
-      
-      userPrompt = `Original prompt: "${inputText}"\n\nEnhanced prompt:`;
     }
 
     // Appel au modèle Gemini 2.5 Flash via Replicate
     console.log('⏱️  Timeout: 10 minutes maximum');
+    console.log('📝 System instruction length:', systemInstruction.length);
+    console.log('📝 User prompt:', userPrompt);
+    
     const output = await replicate.run(
       'google/gemini-2.5-flash',
       {
         input: {
           system_instruction: systemInstruction,
           prompt: userPrompt,
-          max_output_tokens: 512,
-          temperature: 0.7,
+          max_output_tokens: 1024,
+          temperature: 1,
           top_p: 0.95,
           dynamic_thinking: false,
         },

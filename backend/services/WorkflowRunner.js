@@ -23,6 +23,11 @@ export class WorkflowRunner {
     this.taskServices.set('generate_video_t2v', null);
     this.taskServices.set('generate_video_i2v', null);
     this.taskServices.set('generate_workflow', null);
+    
+    // Tâches génériques (inputs utilisateur)
+    this.taskServices.set('input_text', null);
+    this.taskServices.set('input_images', null);
+    this.taskServices.set('camera_capture', null);
   }
 
   /**
@@ -153,6 +158,66 @@ export class WorkflowRunner {
    */
   async resolveValue(value, context) {
     if (typeof value === 'string') {
+      // Cas spécial: Référence à une image unique uploadée depuis le Builder
+      if (value.startsWith('__UPLOADED_IMAGE_')) {
+        const match = value.match(/^__UPLOADED_IMAGE_(.+?)_(.+?)__$/);
+        if (match && context.inputs && context.inputs.__uploadedFiles) {
+          const [, taskId, inputKey] = match;
+          const fieldName = `${taskId}_${inputKey}`;
+          const uploadedFiles = context.inputs.__uploadedFiles[fieldName];
+          
+          if (uploadedFiles && uploadedFiles.length > 0) {
+            global.logWorkflow(`📎 Résolution image unique uploadée: ${fieldName}`);
+            return uploadedFiles[0]; // Retourne le premier fichier
+          }
+        }
+        
+        global.logWorkflow(`⚠️ Image uploadée non trouvée: ${value}`);
+        return value;
+      }
+      
+      // Cas spécial: Référence aux images uploadées depuis le Builder (multiple)
+      if (value.startsWith('__UPLOADED_IMAGES_')) {
+        const match = value.match(/^__UPLOADED_IMAGES_(.+?)_(.+?)__$/);
+        if (match && context.inputs && context.inputs.__uploadedFiles) {
+          const [, taskId, inputKey] = match;
+          const fieldName = `${taskId}_${inputKey}`;
+          const uploadedFiles = context.inputs.__uploadedFiles[fieldName];
+          
+          if (uploadedFiles) {
+            global.logWorkflow(`📎 Résolution images uploadées: ${fieldName}`, {
+              count: uploadedFiles.length
+            });
+            return uploadedFiles;
+          }
+        }
+        
+        global.logWorkflow(`⚠️ Images uploadées non trouvées: ${value}`);
+        return value;
+      }
+      
+      // Cas spécial : si la chaîne est UNIQUEMENT une variable (ex: "{{inputs.images}}")
+      // retourner la valeur directement sans conversion en string
+      const singleVarMatch = value.match(/^\{\{([^}]+)\}\}$/);
+      if (singleVarMatch) {
+        const path = singleVarMatch[1].trim();
+        const resolvedValue = this.getValueFromPath(path, context);
+        
+        global.logWorkflow(`🔍 Résolution variable unique: ${value}`, {
+          path: path,
+          valueType: Array.isArray(resolvedValue) ? 'array' : typeof resolvedValue,
+          resolved: resolvedValue !== undefined ? 'OUI' : 'NON'
+        });
+        
+        // Si c'est une URL d'image, la convertir en base64
+        if (typeof resolvedValue === 'string' && this.isImageUrl(resolvedValue)) {
+          return await this.convertUrlToBase64(resolvedValue);
+        }
+        
+        return resolvedValue !== undefined ? resolvedValue : value;
+      }
+      
+      // Cas normal : résolution de variables dans une chaîne avec texte
       const resolved = this.resolveStringVariables(value, context);
       // Si c'est une URL d'image, la convertir en base64
       if (this.isImageUrl(resolved)) {
@@ -269,7 +334,12 @@ export class WorkflowRunner {
       'edit_image': './tasks/EditImageTask.js',
       'generate_video_t2v': './tasks/GenerateVideoT2VTask.js',
       'generate_video_i2v': './tasks/GenerateVideoI2VTask.js',
-      'generate_workflow': './tasks/GenerateWorkflowTask.js'
+      'generate_workflow': './tasks/GenerateWorkflowTask.js',
+      
+      // Tâches génériques (inputs utilisateur)
+      'input_text': './tasks/InputTextTask.js',
+      'input_images': './tasks/InputImagesTask.js',
+      'camera_capture': './tasks/CameraCaptureTask.js'
     };
 
     const servicePath = serviceMap[taskType];

@@ -20,6 +20,17 @@ export class EditImageTask {
    */
   async execute(inputs) {
     try {
+      // Normaliser le nom du champ prompt
+      // Accepter 'editPrompt' ou 'prompt' (compatibilité workflow Builder)
+      if (inputs.editPrompt && !inputs.prompt) {
+        inputs.prompt = inputs.editPrompt;
+      }
+
+      // Normaliser les images : si c'est un array, garder tel quel, sinon en faire un array
+      if (inputs.images && !Array.isArray(inputs.images)) {
+        inputs.images = [inputs.images];
+      }
+
       global.logWorkflow(`✂️ Édition d'image`, {
         model: this.modelName,
         prompt: inputs.prompt?.substring(0, 100) + '...',

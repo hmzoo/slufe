@@ -87,11 +87,14 @@ const upload = multer({
 /**
  * Middleware conditionnel pour multer
  * N'utilise multer que si Content-Type est multipart/form-data
+ * Accepte n'importe quel nom de champ pour les fichiers (noms dynamiques)
  */
 function conditionalMulter(req, res, next) {
   const contentType = req.get('Content-Type') || '';
   if (contentType.includes('multipart/form-data')) {
-    return upload.array('images', 10)(req, res, next);
+    // Utiliser .any() pour accepter des champs avec noms dynamiques
+    // Ex: task1_uploadedImages, task2_capturedImage, etc.
+    return upload.any()(req, res, next);
   }
   next();
 }
@@ -143,14 +146,65 @@ router.post('/run', conditionalMulter, async (req, res) => {
 
       // Préparation des inputs avec fichiers uploadés
       if (req.files && req.files.length > 0) {
-        inputs.images = req.files.map(file => ({
-          buffer: file.buffer,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size
-        }));
+        // Gérer les fichiers groupés par champ
+        // Format: taskId_inputKey (ex: "edit1_images")
+        const filesByField = {};
+        
+        req.files.forEach(file => {
+          const fieldName = file.fieldname;
+          
+          if (!filesByField[fieldName]) {
+            filesByField[fieldName] = [];
+          }
+          
+          filesByField[fieldName].push({
+            buffer: file.buffer,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size
+          });
+        });
+        
+        global.logWorkflow('📎 Fichiers uploadés par champ', {
+          fields: Object.keys(filesByField),
+          counts: Object.fromEntries(
+            Object.entries(filesByField).map(([k, v]) => [k, v.length])
+          )
+        });
+        
+        // Si le champ est "images" (mode template classique)
+        if (filesByField.images) {
+          inputs.images = filesByField.images;
+        }
+        
+        // Stocker tous les fichiers pour résolution ultérieure
+        inputs.__uploadedFiles = filesByField;
       }
 
+      // Parser les inputs JSON s'ils sont fournis
+      if (req.body.inputs) {
+        try {
+          const parsedInputs = JSON.parse(req.body.inputs);
+          global.logWorkflow('📥 Inputs parsés depuis JSON', {
+            inputsKeys: Object.keys(parsedInputs),
+            inputsValues: parsedInputs
+          });
+          Object.assign(inputs, parsedInputs);
+        } catch (error) {
+          global.logWorkflow('⚠️ Erreur parsing inputs JSON', { 
+            error: error.message,
+            rawInputs: req.body.inputs
+          });
+        }
+      }
+
+      global.logWorkflow('📦 Inputs finaux avant exécution', {
+        inputsKeys: Object.keys(inputs),
+        hasImages: !!inputs.images,
+        imageCount: inputs.images?.length
+      });
+
+      // Compatibilité: user_prompt peut aussi être envoyé directement
       if (req.body.user_prompt) {
         inputs.user_prompt = req.body.user_prompt;
       }
