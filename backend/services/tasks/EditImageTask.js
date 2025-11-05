@@ -27,7 +27,27 @@ export class EditImageTask {
         inputs.prompt = inputs.editPrompt;
       }
 
-      // Normaliser les images : si c'est un array, garder tel quel, sinon en faire un array
+      // Normaliser les images : nouveau format avec image1, image2, image3
+      // Toujours reconstruire l'array images à partir de image1, image2, image3
+      const images = [];
+      
+      // Collecter image1, image2, image3 en array images
+      if (inputs.image1) {
+        const normalized1 = this.normalizeImageInput(inputs.image1);
+        images.push(...normalized1);
+      }
+      if (inputs.image2) {
+        const normalized2 = this.normalizeImageInput(inputs.image2);
+        images.push(...normalized2);
+      }
+      if (inputs.image3) {
+        const normalized3 = this.normalizeImageInput(inputs.image3);
+        images.push(...normalized3);
+      }
+      
+      inputs.images = images;
+      
+      // Fallback: si c'est un array, garder tel quel, sinon en faire un array
       if (inputs.images && !Array.isArray(inputs.images)) {
         inputs.images = [inputs.images];
       }
@@ -39,15 +59,45 @@ export class EditImageTask {
         parameters: inputs.parameters
       });
 
+      // Debug: Afficher les inputs bruts avant et après normalisation
+      global.logWorkflow(`🔍 Inputs bruts avant normalisation:`, {
+        image1: inputs.image1 ? { type: typeof inputs.image1, value: inputs.image1 } : 'undefined',
+        image2: inputs.image2 ? { type: typeof inputs.image2, value: inputs.image2 } : 'undefined',
+        image3: inputs.image3 ? { type: typeof inputs.image3, value: inputs.image3 } : 'undefined',
+        imagesArray: inputs.images ? `Array[${inputs.images.length}]` : 'undefined'
+      });
+
+      // Debug: Afficher le contenu exact des images après normalisation
+      if (inputs.images && inputs.images.length > 0) {
+        inputs.images.forEach((img, index) => {
+          global.logWorkflow(`🖼️ Image normalisée ${index + 1}:`, {
+            type: typeof img,
+            isString: typeof img === 'string',
+            isObject: typeof img === 'object',
+            hasBuffer: img?.buffer ? 'OUI' : 'NON',
+            hasUrl: img?.url ? 'OUI' : 'NON',
+            stringValue: typeof img === 'string' ? img.substring(0, 100) : 'N/A',
+            objectKeys: typeof img === 'object' ? Object.keys(img || {}) : 'N/A'
+          });
+        });
+      } else {
+        global.logWorkflow(`⚠️ Aucune image après normalisation`);
+      }
+
       // Validation des entrées
       const validation = this.validateInputs(inputs);
       if (!validation.isValid) {
         throw new Error(`Entrées invalides: ${validation.errors.join(', ')}`);
       }
 
-      // Préparation des paramètres
+      // Préparation des paramètres avec le nouveau format image1, image2, image3
       const editParams = {
         prompt: inputs.prompt,
+        // Nouveau format attendu par imageEditor.js
+        image1: inputs.images && inputs.images[0] ? inputs.images[0] : undefined,
+        image2: inputs.images && inputs.images[1] ? inputs.images[1] : undefined,
+        image3: inputs.images && inputs.images[2] ? inputs.images[2] : undefined,
+        // Garder aussi l'ancien format pour compatibilité
         images: inputs.images,
         ...this.getDefaultParameters(),
         ...inputs.parameters
@@ -65,26 +115,25 @@ export class EditImageTask {
         return img;
       });
 
-      // Appel du service d'édition d'images existant
-      let result;
+      // Appel du service d'édition d'images - toujours utiliser editImage avec le nouveau format
+      const editImageParams = {
+        prompt: inputs.prompt,
+        image1: processedImages[0],
+        image2: processedImages[1],
+        image3: processedImages[2],
+        aspectRatio: this.getAspectRatioFromStrength(editParams.strength),
+        outputFormat: 'jpg'
+      };
       
-      if (processedImages.length === 1) {
-        // Édition d'une seule image
-        result = await editSingleImage({
-          prompt: inputs.prompt,
-          imageUrl: processedImages[0],
-          aspectRatio: this.getAspectRatioFromStrength(editParams.strength),
-          outputFormat: 'jpg'
-        });
-      } else {
-        // Édition multiple
-        result = await editImage({
-          prompt: inputs.prompt,
-          images: processedImages,
-          aspectRatio: this.getAspectRatioFromStrength(editParams.strength),
-          outputFormat: 'jpg'
-        });
-      }
+      global.logWorkflow(`🚀 Appel editImage() avec paramètres:`, {
+        hasImage1: !!editImageParams.image1,
+        hasImage2: !!editImageParams.image2,
+        hasImage3: !!editImageParams.image3,
+        image1Value: editImageParams.image1,
+        allKeys: Object.keys(editImageParams)
+      });
+      
+      const result = await editImage(editImageParams);
 
       const externalImageUrls = result.imageUrls || [result.imageUrl || result];
 
@@ -373,6 +422,74 @@ export class EditImageTask {
       estimatedDuration: 25, // secondes
       costEstimate: 0.08 // USD
     };
+  }
+
+  /**
+   * Normalise un input d'image en gérant différents formats
+   * @param {*} input - Input à normaliser (peut être une string, array, ou objet)
+   * @returns {Array} Array d'URLs d'images
+   */
+  normalizeImageInput(input) {
+    const images = [];
+    
+    global.logWorkflow(`🔍 Normalisation input:`, {
+      type: typeof input,
+      isArray: Array.isArray(input),
+      isNull: input === null,
+      value: typeof input === 'string' ? input : 'N/A',
+      objectKeys: typeof input === 'object' && input !== null ? Object.keys(input) : 'N/A'
+    });
+
+    // Cas 1: String (ID de média ou URL)
+    if (typeof input === 'string') {
+      if (input.match(/^[0-9a-zA-Z-]+\.+$/)) {
+        // ID de média se terminant par un ou plusieurs points
+        // Ajouter l'extension .jpg à la fin
+        const mediaUrl = `http://localhost:9000/medias/${input}.jpg`;
+        images.push(mediaUrl);
+        global.logWorkflow(`🔄 ID média converti: ${input} -> ${mediaUrl}`);
+      } else if (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('data:')) {
+        // URL valide
+        images.push(input);
+      }
+    }
+    // Cas 2: Objet simple avec url ou buffer  
+    else if (typeof input === 'object' && input !== null && !Array.isArray(input) && (input.url || input.buffer)) {
+      global.logWorkflow(`🔍 Objet simple:`, { 
+        hasUrl: !!input.url, 
+        hasBuffer: !!input.buffer,
+        allKeys: Object.keys(input),
+        mimeType: input.mimeType,
+        size: input.size
+      });
+      if (input.url) {
+        images.push(input.url);
+      } else if (input.buffer) {
+        // Convertir buffer en data URL si nécessaire
+        images.push(input);
+      } else {
+        global.logWorkflow(`⚠️ Objet sans url ni buffer ignoré`);
+      }
+    }
+    // Cas 3: Array résolu comme objet avec clés numériques (de {{input1.images}})
+    else if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+      const keys = Object.keys(input).filter(key => /^\d+$/.test(key)).sort((a, b) => parseInt(a) - parseInt(b));
+      global.logWorkflow(`🔍 Objet avec clés numériques:`, { keys, input });
+      for (const key of keys) {
+        const subImages = this.normalizeImageInput(input[key]);
+        images.push(...subImages);
+      }
+    }
+    // Cas 3: Array normal
+    else if (Array.isArray(input)) {
+      global.logWorkflow(`🔍 Array normal:`, { length: input.length, items: input });
+      for (const item of input) {
+        const subImages = this.normalizeImageInput(item);
+        images.push(...subImages);
+      }
+    }
+
+    return images;
   }
 }
 

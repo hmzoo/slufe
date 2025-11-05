@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeStorage } from './services/dataStorage.js';
+import { initializeCollections } from './services/collectionManager.js';
 import aiRoutes from './routes/ai.js';
 import promptRoutes from './routes/prompt.js';
 import imagesRoutes from './routes/images.js';
@@ -15,6 +16,8 @@ import videoImageRoutes from './routes/videoImage.js';
 import workflowRoutes from './routes/workflow.js';
 import historyRoutes from './routes/history.js';
 import uploadRoutes from './routes/upload.js';
+import templateRoutes from './routes/templates.js';
+import collectionsRoutes from './routes/collections.js';
 
 dotenv.config();
 
@@ -44,6 +47,9 @@ const PORT = process.env.PORT || 3000;
 // Initialiser le stockage des données
 await initializeStorage();
 
+// Initialiser le système de collections
+await initializeCollections();
+
 // Middleware
 app.use(cors());
 // Augmenter la limite pour supporter les images en base64
@@ -61,6 +67,8 @@ app.use('/api/video-image', videoImageRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api/collections', collectionsRoutes);
 
 // Servir les fichiers médias (images, vidéos)
 const mediasPath = path.join(__dirname, 'medias');

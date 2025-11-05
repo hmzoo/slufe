@@ -4,9 +4,19 @@
     <div class="gallery-header q-mb-md">
       <div class="row items-center justify-between">
         <div class="col">
-          <h6 class="q-my-none">Galerie Médias</h6>
+          <h6 class="q-my-none">
+            {{ useCollections ? 'Collection Images' : 'Galerie Médias' }}
+          </h6>
           <div class="text-caption text-grey-6">
-            {{ mediaStore.totalCount }} médias • {{ mediaStore.formatFileSize(mediaStore.totalSize) }}
+            <span v-if="useCollections && currentCollection">
+              {{ collectionImages.length }} images • Collection: {{ currentCollection.name }}
+            </span>
+            <span v-else-if="useCollections">
+              {{ collectionImages.length }} images • Collection courante
+            </span>
+            <span v-else>
+              {{ mediaStore.totalCount }} médias • {{ mediaStore.formatFileSize(mediaStore.totalSize) }}
+            </span>
           </div>
         </div>
         <div class="col-auto">
@@ -15,7 +25,7 @@
               dense 
               icon="refresh" 
               @click="refreshMedias"
-              :loading="mediaStore.loading"
+              :loading="useCollections ? loadingCollection : mediaStore.loading"
               title="Actualiser"
             />
             <q-btn 
@@ -220,6 +230,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useMediaStore } from 'src/stores/useMediaStore'
 import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 
 // Composants (à créer)
 import MediaUploadDialog from './MediaUploadDialog.vue'
@@ -248,6 +259,11 @@ const props = defineProps({
   maxItems: {
     type: Number,
     default: 50
+  },
+  // Utiliser les collections au lieu du media store
+  useCollections: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -269,25 +285,35 @@ const showInfoDialog = ref(false)
 const previewedMedia = ref(null)
 const selectedMediaForInfo = ref(null)
 
+// Collections
+const collectionImages = ref([])
+const currentCollection = ref(null)
+const loadingCollection = ref(false)
+
 // Computed - Médias filtrés
 const filteredMedias = computed(() => {
   let medias = []
   
-  switch (activeFilter.value) {
-    case 'images':
-      medias = mediaStore.images
-      break
-    case 'videos':
-      medias = mediaStore.videos
-      break
-    case 'recent':
-      medias = mediaStore.getRecent(20)
-      break
-    case 'used':
-      medias = mediaStore.getMostUsed(20)
-      break
-    default:
-      medias = mediaStore.allMedias
+  // Utiliser les collections si activé, sinon utiliser mediaStore
+  if (props.useCollections) {
+    medias = collectionImages.value
+  } else {
+    switch (activeFilter.value) {
+      case 'images':
+        medias = mediaStore.images
+        break
+      case 'videos':
+        medias = mediaStore.videos
+        break
+      case 'recent':
+        medias = mediaStore.getRecent(20)
+        break
+      case 'used':
+        medias = mediaStore.getMostUsed(20)
+        break
+      default:
+        medias = mediaStore.allMedias
+    }
   }
   
   // Filtrer par types acceptés
@@ -361,18 +387,61 @@ function updateModelValue() {
 // Méthodes - Actions
 async function refreshMedias() {
   try {
-    await mediaStore.loadAllMedias()
-    $q.notify({
-      type: 'positive',
-      message: 'Médias actualisés',
-      timeout: 1500
-    })
+    if (props.useCollections) {
+      await loadCollectionImages()
+      $q.notify({
+        type: 'positive',
+        message: 'Collection actualisée',
+        timeout: 1500
+      })
+    } else {
+      await mediaStore.loadAllMedias()
+      $q.notify({
+        type: 'positive',
+        message: 'Médias actualisés',
+        timeout: 1500
+      })
+    }
   } catch (error) {
     $q.notify({
       type: 'negative',
       message: 'Erreur lors de l\'actualisation: ' + error.message,
       timeout: 3000
     })
+  }
+}
+
+async function loadCollectionImages() {
+  if (!props.useCollections) return
+  
+  try {
+    loadingCollection.value = true
+    const response = await api.get('/collections/current/gallery')
+    
+    if (response.data.success) {
+      // Convertir le format des images de collection vers le format attendu par le composant
+      collectionImages.value = response.data.images.map((img, index) => ({
+        id: `collection_${index}`,
+        url: img.url,
+        type: 'image', // On assume que ce sont des images
+        originalName: img.description || `Image ${index + 1}`,
+        filename: `collection_image_${index}.jpg`,
+        size: 0, // Taille inconnue
+        createdAt: img.addedAt,
+        fromCollection: true
+      }))
+      
+      currentCollection.value = response.data.collection
+      console.log(`📚 ${collectionImages.value.length} images chargées depuis la collection courante`)
+    }
+  } catch (error) {
+    console.error('Erreur chargement collection:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Erreur lors du chargement de la collection'
+    })
+  } finally {
+    loadingCollection.value = false
   }
 }
 
@@ -463,7 +532,9 @@ function getEmptyMessage() {
 
 // Lifecycle
 onMounted(async () => {
-  if (mediaStore.totalCount === 0) {
+  if (props.useCollections) {
+    await loadCollectionImages()
+  } else if (mediaStore.totalCount === 0) {
     await refreshMedias()
   }
 })

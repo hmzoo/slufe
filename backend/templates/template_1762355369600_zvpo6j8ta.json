@@ -1,0 +1,64 @@
+{
+  "id": "template_1762355369600_zvpo6j8ta",
+  "name": "img-edit-enhanced_3",
+  "description": "Template créé à partir du workflow \"Nouveau workflow basé sur img-edit-enhanced_2\"",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Nouveau workflow basé sur img-edit-enhanced_2",
+    "description": "Créé à partir du template: img-edit-enhanced_2",
+    "tasks": [
+      {
+        "id": "input1",
+        "type": "input_text",
+        "input": {
+          "label": "Prompt ",
+          "placeholder": "description des changement ",
+          "defaultValue": "transform to ink draw"
+        }
+      },
+      {
+        "id": "input2",
+        "type": "input_images",
+        "input": {
+          "label": "Image1",
+          "multiple": false
+        }
+      },
+      {
+        "id": "describe1",
+        "type": "describe_images",
+        "input": {
+          "images": "{{input2.images}}",
+          "question": "",
+          "language": "en"
+        }
+      },
+      {
+        "id": "enhance1",
+        "type": "enhance_prompt",
+        "input": {
+          "prompt": "{{input1.text}}",
+          "targetType": "edit",
+          "style": "photographic",
+          "imageDescription1": "{{describe1.descriptions}}",
+          "imageDescription2": ""
+        }
+      },
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "input": {
+          "image1": "{{input2.images}}",
+          "image2": null,
+          "image3": null,
+          "editPrompt": "{{enhance1.enhanced_prompt}}",
+          "aspectRatio": "original"
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-05T15:09:29.601Z",
+  "createdFrom": "workflow_1762354906452",
+  "tags": []
+}

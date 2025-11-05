@@ -551,38 +551,133 @@ export const useWorkflowStore = defineStore('workflow', () => {
     lastResult.value = null
   }
 
-  function saveWorkflow(name, description) {
-    if (!currentWorkflow.value) return
+  function saveWorkflow(name, description, workflowToSave = null) {
+    const workflow = workflowToSave || currentWorkflow.value
+    if (!workflow) return
 
-    const savedWorkflow = {
-      id: Date.now().toString(),
-      name,
-      description,
-      workflow: { ...currentWorkflow.value.workflow },
-      inputs: { ...currentWorkflow.value.inputs },
-      createdAt: new Date().toISOString()
+    console.log('💾 Sauvegarde workflow:', { name, workflow })
+
+    // Vérifier si un workflow avec ce nom existe déjà
+    const existingIndex = savedWorkflows.value.findIndex(w => w.name === name)
+    
+    if (existingIndex !== -1) {
+      // Mettre à jour le workflow existant
+      const existingWorkflow = savedWorkflows.value[existingIndex]
+      const updatedWorkflow = {
+        ...existingWorkflow,
+        description: description || existingWorkflow.description,
+        workflow: workflow.workflow ? { ...workflow.workflow } : { ...workflow },
+        inputs: workflow.inputs ? { ...workflow.inputs } : {},
+        updatedAt: new Date().toISOString(),
+        version: (existingWorkflow.version || 1) + 1
+      }
+      
+      savedWorkflows.value[existingIndex] = updatedWorkflow
+      console.log(`🔄 Workflow "${name}" mis à jour (v${updatedWorkflow.version})`)
+      
+      // Sauvegarder en localStorage
+      persistSavedWorkflows()
+      
+      return updatedWorkflow
+    } else {
+      // Créer un nouveau workflow
+      const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      const timestamp = Date.now()
+      const id = `${baseId}-${timestamp}`
+
+      const savedWorkflow = {
+        id,
+        name,
+        description: description || `Workflow créé le ${new Date().toLocaleDateString()}`,
+        workflow: workflow.workflow ? { ...workflow.workflow } : { ...workflow },
+        inputs: workflow.inputs ? { ...workflow.inputs } : {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+        category: 'custom',
+        icon: 'save'
+      }
+
+      console.log('📊 Structure sauvegardée:', savedWorkflow)
+
+      // Ajouter à la liste
+      savedWorkflows.value.push(savedWorkflow)
+      
+      console.log(`✅ Nouveau workflow "${name}" créé avec ID: ${id}`)
     }
-
-    savedWorkflows.value.push(savedWorkflow)
     
     // Sauvegarder en localStorage
-    localStorage.setItem('slufe_saved_workflows', JSON.stringify(savedWorkflows.value))
+    persistSavedWorkflows()
     
-    return savedWorkflow
+    return savedWorkflows.value.find(w => w.name === name)
   }
 
-  function loadSavedWorkflow(savedWorkflow) {
-    const templateLike = {
-      id: savedWorkflow.id,
-      name: savedWorkflow.name,
-      description: savedWorkflow.description,
-      icon: 'save',
-      category: 'saved',
-      workflow: savedWorkflow.workflow,
-      inputs: savedWorkflow.inputs
+  function updateWorkflow(id, updates) {
+    const index = savedWorkflows.value.findIndex(w => w.id === id)
+    if (index === -1) return null
+
+    const workflow = savedWorkflows.value[index]
+    const updatedWorkflow = {
+      ...workflow,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+      version: (workflow.version || 1) + 1
+    }
+
+    savedWorkflows.value[index] = updatedWorkflow
+    persistSavedWorkflows()
+    
+    console.log(`✅ Workflow "${workflow.name}" mis à jour`)
+    return updatedWorkflow
+  }
+
+  function duplicateWorkflow(id, newName = null) {
+    const original = savedWorkflows.value.find(w => w.id === id)
+    if (!original) return null
+
+    const name = newName || `${original.name} (Copie)`
+    return saveWorkflow(name, `Copie de: ${original.description}`, original)
+  }
+
+  function renameWorkflow(id, newName) {
+    return updateWorkflow(id, { name: newName })
+  }
+
+  function persistSavedWorkflows() {
+    try {
+      localStorage.setItem('slufe_saved_workflows', JSON.stringify(savedWorkflows.value))
+    } catch (e) {
+      console.error('Erreur sauvegarde workflows:', e)
+    }
+  }
+
+  function loadSavedWorkflow(workflowId) {
+    // Trouver le workflow par ID ou par objet direct
+    let workflow
+    if (typeof workflowId === 'string') {
+      workflow = savedWorkflows.value.find(w => w.id === workflowId)
+      if (!workflow) {
+        console.error(`Workflow avec ID "${workflowId}" introuvable`)
+        return
+      }
+    } else {
+      // Support legacy - si c'est déjà l'objet workflow
+      workflow = workflowId
     }
     
+    const templateLike = {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      icon: 'save',
+      category: 'saved',
+      workflow: workflow.workflow,
+      inputs: workflow.inputs || {}
+    }
+    
+    console.log('📋 Chargement workflow:', templateLike.name)
     setCurrentWorkflow(templateLike)
+    return templateLike
   }
 
   function deleteSavedWorkflow(id) {
@@ -636,8 +731,36 @@ export const useWorkflowStore = defineStore('workflow', () => {
     return templateLike
   }
 
+  // Migration des anciens workflows depuis 'customWorkflows'
+  function migrateLegacyWorkflows() {
+    try {
+      const legacy = localStorage.getItem('customWorkflows')
+      if (legacy) {
+        const oldWorkflows = JSON.parse(legacy)
+        console.log(`🔄 Migration de ${oldWorkflows.length} ancien(s) workflow(s)`)
+        
+        oldWorkflows.forEach(workflow => {
+          // Convertir au nouveau format
+          const migrated = saveWorkflow(
+            workflow.name || 'Workflow migré',
+            `Migré depuis l'ancien système - ${workflow.description || ''}`,
+            workflow
+          )
+          console.log(`✅ Migré: ${migrated.name}`)
+        })
+        
+        // Supprimer les anciens après migration
+        localStorage.removeItem('customWorkflows')
+        console.log('🗑️ Anciens workflows supprimés')
+      }
+    } catch (e) {
+      console.warn('Erreur migration workflows:', e)
+    }
+  }
+
   // Initialisation
   loadSavedWorkflows()
+  migrateLegacyWorkflows()
 
   return {
     // État
@@ -664,10 +787,14 @@ export const useWorkflowStore = defineStore('workflow', () => {
     clearError,
     clearResult,
     saveWorkflow,
+    updateWorkflow,
+    duplicateWorkflow,
+    renameWorkflow,
     loadSavedWorkflow,
     deleteSavedWorkflow,
     getTemplateById,
     exportWorkflow,
-    importWorkflow
+    importWorkflow,
+    persistSavedWorkflows
   }
 })

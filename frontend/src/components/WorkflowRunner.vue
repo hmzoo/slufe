@@ -3,7 +3,35 @@
     <q-card-section>
       <div class="row items-center q-mb-md">
         <div class="col">
-          <div class="text-h6 text-primary">🔧 Workflow Builder</div>
+          <div class="row items-center q-gutter-md no-wrap">
+            <div class="text-h6 text-primary">🔧 Workflow Builder</div>
+            
+            <!-- Indicateur de collection courante -->
+            <div v-if="currentCollection" class="row items-center q-gutter-xs no-wrap">
+              <q-icon name="collections" color="purple" size="18px" />
+              <span class="text-body2 text-purple">
+                {{ currentCollection.name }}
+              </span>
+              <q-chip 
+                size="sm" 
+                color="purple" 
+                text-color="white" 
+                :label="`${currentCollection.images?.length || 0} images`"
+              />
+            </div>
+            <div v-else class="row items-center q-gutter-xs text-caption text-grey-5 no-wrap">
+              <q-icon name="collections_bookmark" size="16px" />
+              <span>Aucune collection</span>
+              <q-btn 
+                size="xs" 
+                flat 
+                dense 
+                label="Gérer" 
+                color="grey-6"
+                @click="showCollectionManager = true"
+              />
+            </div>
+          </div>
           <div class="text-caption text-grey-6">Créez votre workflow personnalisé</div>
         </div>
         <div class="col-auto">
@@ -11,26 +39,24 @@
           <div class="row q-gutter-sm">
             <q-btn
               flat
-              icon="upload"
-              label="Importer"
+              icon="folder"
+              label="Mes Workflows"
               color="primary"
-              @click="importWorkflow"
+              @click="showSavedWorkflowManager = true"
             />
             <q-btn
               flat
-              icon="download"
-              label="Exporter"
-              color="primary"
-              :disable="!customWorkflow.tasks.length"
-              @click="exportWorkflow"
+              icon="dashboard"
+              label="Templates"
+              color="secondary"
+              @click="showTemplateManager = true"
             />
             <q-btn
               flat
-              icon="save"
-              label="Sauvegarder"
-              color="positive"
-              :disable="!customWorkflow.tasks.length"
-              @click="saveCustomWorkflow"
+              icon="collections"
+              label="Collections"
+              color="purple"
+              @click="showCollectionManager = true"
             />
           </div>
         </div>
@@ -71,10 +97,58 @@
           <div class="col-12 col-md-6">
             <q-card flat bordered>
               <q-card-section>
+                <!-- En-tête du workflow avec titre -->
                 <div class="row items-center q-mb-sm">
-                  <div class="text-subtitle2 col">📋 Workflow ({{ customWorkflow.tasks.length }} tâche{{ customWorkflow.tasks.length > 1 ? 's' : '' }})</div>
+                  <div class="col">
+                    <div class="text-subtitle2">📋 Workflow ({{ customWorkflow.tasks.length }} tâche{{ customWorkflow.tasks.length > 1 ? 's' : '' }})</div>
+                    <div v-if="customWorkflow.name" class="text-caption text-grey-6 q-mt-xs">
+                      <q-icon name="title" size="14px" class="q-mr-xs" />
+                      {{ customWorkflow.name }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Actions du workflow -->
+                <div class="row q-gutter-xs q-mb-md">
+                  <q-btn
+                    size="sm"
+                    flat
+                    icon="upload"
+                    label="Importer"
+                    color="primary"
+                    @click="importWorkflow"
+                  />
+                  <q-btn
+                    size="sm"
+                    flat
+                    icon="download"
+                    label="Exporter"
+                    color="primary"
+                    :disable="!customWorkflow.tasks.length"
+                    @click="exportWorkflow"
+                  />
+                  <q-btn
+                    size="sm"
+                    flat
+                    icon="save"
+                    label="Sauvegarder"
+                    color="positive"
+                    :disable="!customWorkflow.tasks.length"
+                    @click="openSaveDialog"
+                  />
+                  <q-btn
+                    size="sm"
+                    flat
+                    icon="dashboard"
+                    label="Créer Template"
+                    color="secondary"
+                    :disable="!customWorkflow.tasks.length"
+                    @click="createTemplateFromWorkflow"
+                  />
+                  <q-space />
                   <q-btn
                     v-if="customWorkflow.tasks.length"
+                    size="sm"
                     flat
                     dense
                     icon="delete_outline"
@@ -192,8 +266,8 @@
                             
                             <!-- Choix: Variable, Galerie ou Upload -->
                             <q-btn-toggle
-                              :model-value="task.imageInputMode || 'variable'"
-                              @update:model-value="(val) => { task.imageInputMode = val; console.log('Image input mode changed:', val, 'for task:', task.id); }"
+                              :model-value="task[`imageInputMode_${inputKey}`] || 'variable'"
+                              @update:model-value="(val) => { task[`imageInputMode_${inputKey}`] = val; console.log('Image input mode changed:', val, 'for input:', inputKey, 'task:', task.id); }"
                               :options="[
                                 { label: 'Variable', value: 'variable', icon: 'code' },
                                 { label: 'Galerie', value: 'gallery', icon: 'photo_library' },
@@ -206,7 +280,7 @@
                             />
 
                             <!-- Mode Variable -->
-                            <div v-if="!task.imageInputMode || task.imageInputMode === 'variable'">
+                            <div v-if="!task[`imageInputMode_${inputKey}`] || task[`imageInputMode_${inputKey}`] === 'variable'">
                               <q-btn
                                 dense
                                 flat
@@ -220,12 +294,35 @@
                               <div v-if="task.input[inputKey] && typeof task.input[inputKey] === 'string'" class="text-caption text-grey-7 bg-grey-3 q-pa-xs rounded-borders">
                                 <q-icon name="link" size="xs" /> {{ task.input[inputKey] }}
                               </div>
+                              
+                              <!-- Aperçu des images référencées par la variable -->
+                              <div v-if="task.input[inputKey] && typeof task.input[inputKey] === 'string' && getReferencedImages(task.input[inputKey]).length > 0" class="q-mt-sm">
+                                <div class="text-caption text-grey-6 q-mb-xs">
+                                  Images référencées ({{ getReferencedImages(task.input[inputKey]).length }}) :
+                                </div>
+                                <div class="row q-col-gutter-xs">
+                                  <div v-for="image in getReferencedImages(task.input[inputKey]).slice(0, 4)" :key="image.id" class="col-auto">
+                                    <q-img
+                                      :src="image.url"
+                                      width="40px"
+                                      height="40px"
+                                      fit="cover"
+                                      class="rounded-borders shadow-2"
+                                    >
+                                      <q-tooltip>{{ image.name || 'Image' }}</q-tooltip>
+                                    </q-img>
+                                  </div>
+                                  <div v-if="getReferencedImages(task.input[inputKey]).length > 4" class="col-auto flex flex-center">
+                                    <div class="text-caption text-grey-6">+{{ getReferencedImages(task.input[inputKey]).length - 4 }}</div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
 
                             <!-- Mode Galerie -->
-                            <div v-else-if="task.imageInputMode === 'gallery'">
+                            <div v-else-if="task[`imageInputMode_${inputKey}`] === 'gallery'">
                               <MediaSelector
-                                v-model="task.mediaIds"
+                                v-model="task[`mediaIds_${inputKey}`]"
                                 :label="inputDef.label"
                                 :placeholder="inputDef.type === 'images' ? 'Sélectionner des images depuis la galerie...' : 'Sélectionner une image depuis la galerie...'"
                                 :multiple="inputDef.type === 'images'"
@@ -235,19 +332,19 @@
                               />
                               
                               <!-- Info des médias sélectionnés -->
-                              <div v-if="task.mediaIds && getSelectedMediasInfo(task.mediaIds).length" class="q-mt-xs">
+                              <div v-if="task[`mediaIds_${inputKey}`] && getSelectedMediasInfo(task[`mediaIds_${inputKey}`]).length" class="q-mt-xs">
                                 <div class="text-caption text-grey-6 q-mb-xs">
-                                  {{ getSelectedMediasInfo(task.mediaIds).length }} média(s) sélectionné(s) :
+                                  {{ getSelectedMediasInfo(task[`mediaIds_${inputKey}`]).length }} média(s) sélectionné(s) :
                                 </div>
                                 <div class="row q-col-gutter-xs">
-                                  <div v-for="media in getSelectedMediasInfo(task.mediaIds)" :key="media.id" class="col-auto">
+                                  <div v-for="media in getSelectedMediasInfo(task[`mediaIds_${inputKey}`])" :key="media.id" class="col-auto">
                                     <q-chip 
                                       dense 
                                       color="primary" 
                                       text-color="white"
                                       :label="media.originalName || media.filename"
                                       removable
-                                      @remove="removeTaskMediaId(task, media.id)"
+                                      @remove="removeTaskMediaId(task, inputKey, media.id)"
                                     />
                                   </div>
                                 </div>
@@ -255,7 +352,7 @@
                             </div>
 
                             <!-- Mode Upload -->
-                            <div v-else-if="task.imageInputMode === 'upload'">
+                            <div v-else-if="task[`imageInputMode_${inputKey}`] === 'upload'">
                               <q-file
                                 :multiple="inputDef.type === 'images'"
                                 accept="image/*"
@@ -296,38 +393,105 @@
                         <!-- Section spéciale pour les tâches génériques input_images -->
                         <div v-if="task.type === 'input_images'" class="q-mt-md">
                           <div class="text-caption text-weight-medium q-mb-xs">Images à uploader</div>
-                          <q-file
-                            v-model="task.uploadedFiles"
-                            :multiple="task.input.multiple !== false"
-                            accept="image/*"
-                            dense
-                            filled
-                            bg-color="white"
-                            @update:model-value="(files) => handleTaskImageUpload(task, 'uploadedImages', files)"
-                            label="Sélectionner des images"
-                          >
-                            <template v-slot:prepend>
-                              <q-icon name="attach_file" />
-                            </template>
-                          </q-file>
                           
-                          <!-- Aperçu des images uploadées -->
-                          <div v-if="task.uploadedImagePreviews && task.uploadedImagePreviews.length" class="row q-col-gutter-xs q-mt-xs">
-                            <div v-for="(preview, pIdx) in task.uploadedImagePreviews" :key="pIdx" class="col-4">
-                              <q-card flat bordered class="task-image-preview">
-                                <img :src="preview.url" class="task-image-thumb" />
-                                <q-btn
-                                  flat
-                                  dense
-                                  round
-                                  icon="close"
-                                  size="xs"
-                                  color="negative"
-                                  @click="removeTaskImage(task, pIdx)"
-                                  class="absolute-top-right q-ma-xs"
-                                />
-                              </q-card>
+                          <!-- MediaSelector avec fallback -->
+                          <template v-if="true">
+                            <MediaSelector
+                              v-model="task.selectedMediaIds"
+                              :label="task.input.multiple !== false ? 'Sélectionner des images' : 'Sélectionner une image'"
+                              :accept="['image']"
+                              :multiple="task.input.multiple !== false"
+                              :hide-preview="true"
+                              @update:model-value="(mediaIds) => handleTaskMediaSelection(task, mediaIds)"
+                            />
+                          </template>
+                          
+                          <!-- Fallback avec q-file en cas d'erreur -->
+                          <template v-else>
+                            <q-file
+                              v-model="task.uploadedFiles"
+                              :multiple="task.input.multiple !== false"
+                              accept="image/*"
+                              dense
+                              filled
+                              bg-color="white"
+                              @update:model-value="(files) => handleTaskImageUpload(task, 'uploadedImages', files)"
+                              label="Sélectionner des images (fallback)"
+                            >
+                              <template v-slot:prepend>
+                                <q-icon name="attach_file" />
+                              </template>
+                            </q-file>
+                          </template>
+                          
+                          <!-- Aperçu des images sélectionnées -->
+                          <div v-if="task.uploadedImagePreviews && task.uploadedImagePreviews.length > 0" class="q-mt-md">
+                            <div class="text-caption text-grey-6 q-mb-sm">
+                              {{ task.uploadedImagePreviews.length }} image{{ task.uploadedImagePreviews.length > 1 ? 's' : '' }} sélectionnée{{ task.uploadedImagePreviews.length > 1 ? 's' : '' }} :
                             </div>
+                            
+                            <q-list bordered separator class="rounded-borders">
+                              <q-item 
+                                v-for="(preview, pIdx) in task.uploadedImagePreviews" 
+                                :key="pIdx"
+                                class="image-list-item"
+                              >
+                                <q-item-section avatar>
+                                  <q-avatar size="60px" class="image-thumbnail">
+                                    <q-img 
+                                      :src="preview.url" 
+                                      fit="cover"
+                                      class="rounded-borders"
+                                    >
+                                      <template v-slot:error>
+                                        <div class="absolute-full flex flex-center bg-grey-3">
+                                          <q-icon name="broken_image" color="grey-6" size="md" />
+                                        </div>
+                                      </template>
+                                    </q-img>
+                                  </q-avatar>
+                                </q-item-section>
+
+                                <q-item-section>
+                                  <q-item-label class="text-weight-medium">{{ preview.name }}</q-item-label>
+                                  <q-item-label caption>
+                                    <q-icon name="image" size="xs" class="q-mr-xs" />
+                                    Image {{ pIdx + 1 }}
+                                  </q-item-label>
+                                </q-item-section>
+
+                                <q-item-section side>
+                                  <div class="row items-center no-wrap">
+                                    <!-- Bouton aperçu -->
+                                    <q-btn
+                                      flat
+                                      round
+                                      dense
+                                      icon="visibility"
+                                      color="primary"
+                                      size="sm"
+                                      @click="showImagePreview(preview.url, preview.name)"
+                                      class="q-mr-xs"
+                                    >
+                                      <q-tooltip>Aperçu</q-tooltip>
+                                    </q-btn>
+                                    
+                                    <!-- Bouton suppression -->
+                                    <q-btn
+                                      flat
+                                      round
+                                      dense
+                                      icon="delete"
+                                      color="negative"
+                                      size="sm"
+                                      @click="removeTaskImage(task, pIdx)"
+                                    >
+                                      <q-tooltip>Supprimer</q-tooltip>
+                                    </q-btn>
+                                  </div>
+                                </q-item-section>
+                              </q-item>
+                            </q-list>
                           </div>
                         </div>
 
@@ -412,7 +576,7 @@
                         {{ workflow.name }}
                       </q-item-label>
                       <q-item-label caption>
-                        {{ workflow.tasks.length }} tâche{{ workflow.tasks.length > 1 ? 's' : '' }}
+                        {{ getWorkflowTaskCount(workflow) }} tâche{{ getWorkflowTaskCount(workflow) > 1 ? 's' : '' }}
                       </q-item-label>
                     </q-item-section>
                     
@@ -426,35 +590,22 @@
                           icon="edit"
                           color="primary"
                           size="xs"
-                          @click="loadSavedWorkflow(workflow)"
+                          @click="loadWorkflowInBuilder(workflow)"
                         >
                           <q-tooltip>Charger et modifier</q-tooltip>
                         </q-btn>
                         
-                        <!-- Dupliquer -->
+                        <!-- Gérer -->
                         <q-btn
                           flat
                           dense
                           round
-                          icon="content_copy"
+                          icon="settings"
                           color="info"
                           size="xs"
-                          @click="duplicateSavedWorkflow(workflow)"
+                          @click="showSavedWorkflowManager = true"
                         >
-                          <q-tooltip>Dupliquer</q-tooltip>
-                        </q-btn>
-                        
-                        <!-- Supprimer -->
-                        <q-btn
-                          flat
-                          dense
-                          round
-                          icon="delete"
-                          color="negative"
-                          size="xs"
-                          @click="deleteSavedWorkflow(workflow)"
-                        >
-                          <q-tooltip>Supprimer</q-tooltip>
+                          <q-tooltip>Gérer tous les workflows</q-tooltip>
                         </q-btn>
                       </div>
                     </q-item-section>
@@ -700,18 +851,51 @@
               <div class="text-caption text-grey-6 q-mb-xs">Images éditées :</div>
               <div class="row q-col-gutter-sm">
                 <div v-for="(imgUrl, imgIdx) in taskResult.outputs.edited_images" :key="imgIdx" class="col-12 col-md-6">
-                  <q-img
-                    :src="imgUrl"
-                    style="max-height: 300px"
-                    class="rounded-borders"
-                    fit="contain"
-                  >
-                    <template v-slot:error>
-                      <div class="absolute-full flex flex-center bg-negative text-white">
-                        Erreur de chargement
+                  <div class="image-container">
+                    <q-img
+                      :src="imgUrl"
+                      style="max-height: 300px; cursor: pointer"
+                      class="rounded-borders result-image"
+                      fit="contain"
+                      @click="openImageModal(imgUrl, `Image éditée ${imgIdx + 1}`)"
+                    >
+                      <template v-slot:error>
+                        <div class="absolute-full flex flex-center bg-negative text-white">
+                          Erreur de chargement
+                        </div>
+                      </template>
+                      
+                      <!-- Overlay d'indication au survol -->
+                      <div class="image-overlay" style="pointer-events: none;">
+                        <q-icon name="zoom_in" size="1.5rem" color="white" />
+                        <div class="text-white q-ml-sm text-caption">Cliquer pour agrandir</div>
                       </div>
-                    </template>
-                  </q-img>
+                    </q-img>
+                    
+                    <!-- Boutons flottants -->
+                    <div class="image-actions">
+                      <q-btn
+                        round
+                        color="primary"
+                        icon="download"
+                        size="sm"
+                        @click.stop="downloadImageDirectly(imgUrl, `image-editee-${imgIdx + 1}`)"
+                        class="q-mr-xs"
+                      >
+                        <q-tooltip>Télécharger l'image</q-tooltip>
+                      </q-btn>
+                      
+                      <q-btn
+                        round
+                        color="secondary"
+                        icon="zoom_in"
+                        size="sm"
+                        @click.stop="openImageModal(imgUrl, `Image éditée ${imgIdx + 1}`)"
+                      >
+                        <q-tooltip>Voir en grand</q-tooltip>
+                      </q-btn>
+                    </div>
+                  </div>
                   <q-btn
                     flat
                     dense
@@ -826,6 +1010,137 @@
       </div>
     </q-card-section>
   </q-card>
+
+  <!-- Modal de preview d'image -->
+  <q-dialog 
+    v-model="showImagePreviewModal" 
+    maximized
+    @keyup.escape="showImagePreviewModal = false"
+  >
+    <q-card class="column no-wrap" style="height: 100vh;">
+      <!-- Header avec titre et bouton fermer -->
+      <q-card-section class="row items-center no-wrap bg-primary text-white q-pa-md">
+        <q-avatar icon="image" color="white" text-color="primary" />
+        <div class="text-h6 q-ml-sm text-truncate">{{ previewImage.name }}</div>
+        <q-space />
+        <q-btn
+          icon="fullscreen_exit"
+          flat
+          round
+          dense
+          @click="showImagePreviewModal = false"
+          class="q-mr-xs"
+        >
+          <q-tooltip>Fermer (Échap)</q-tooltip>
+        </q-btn>
+      </q-card-section>
+
+      <!-- Zone d'affichage de l'image -->
+      <q-card-section class="col flex flex-center bg-grey-1 q-pa-md">
+        <q-img
+          :src="previewImage.url"
+          :alt="previewImage.name"
+          fit="contain"
+          style="max-width: 100%; max-height: calc(100vh - 120px);"
+          class="shadow-2"
+        >
+          <template v-slot:loading>
+            <div class="absolute-full flex flex-center bg-grey-2">
+              <q-spinner-dots color="primary" size="2rem" />
+            </div>
+          </template>
+          <template v-slot:error>
+            <div class="absolute-full flex flex-center bg-grey-3">
+              <div class="text-center">
+                <q-icon name="broken_image" color="grey-6" size="4rem" />
+                <div class="text-grey-6 q-mt-sm">Impossible de charger l'image</div>
+                <div class="text-caption q-mt-xs">URL: {{ previewImage.url }}</div>
+              </div>
+            </div>
+          </template>
+        </q-img>
+
+        <!-- Actions en bas à droite -->
+        <div class="absolute-bottom-right q-ma-md">
+          <q-btn
+            round
+            color="white"
+            text-color="dark"
+            icon="open_in_new"
+            size="sm"
+            @click="openImageInNewTab"
+            class="shadow-4"
+          >
+            <q-tooltip>Ouvrir dans un nouvel onglet</q-tooltip>
+          </q-btn>
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
+  <!-- Gestionnaire de workflows sauvegardés -->
+  <SavedWorkflowManager 
+    v-model="showSavedWorkflowManager"
+    @workflow-loaded="loadWorkflowInBuilder"
+  />
+
+  <!-- Gestionnaire de templates -->
+  <TemplateManager 
+    v-model="showTemplateManager"
+    @template-loaded="onTemplateLoaded"
+  />
+
+  <!-- Gestionnaire de collections -->
+  <CollectionManager 
+    v-model="showCollectionManager"
+    @collection-changed="onCollectionChanged"
+  />
+
+  <!-- Modal de visualisation d'image en grand -->
+  <q-dialog v-model="showImageModal" maximized>
+    <q-card class="bg-black text-white">
+      <!-- Header du modal -->
+      <q-card-section class="row items-center q-pa-md bg-grey-9">
+        <div class="text-h6">{{ modalImageTitle }}</div>
+        <q-space />
+        
+        <!-- Boutons d'actions -->
+        <q-btn
+          flat
+          color="white"
+          icon="download"
+          label="Télécharger"
+          @click="downloadImageDirectly(modalImageUrl, modalImageTitle.toLowerCase().replace(/[^a-z0-9]/g, '-'))"
+          class="q-mr-sm"
+        />
+        
+        <q-btn
+          flat
+          color="white"
+          icon="close"
+          label="Fermer"
+          @click="closeImageModal"
+        />
+      </q-card-section>
+      
+      <!-- Image en plein écran -->
+      <q-card-section class="flex flex-center q-pa-none" style="height: calc(100vh - 80px)">
+        <q-img
+          :src="modalImageUrl"
+          fit="contain"
+          style="max-width: 100%; max-height: 100%"
+          spinner-color="white"
+        >
+          <template v-slot:error>
+            <div class="absolute-full flex flex-center bg-grey-8">
+              <q-icon name="broken_image" size="4rem" color="grey-4" />
+              <div class="text-grey-4 q-ml-md">Erreur de chargement</div>
+            </div>
+          </template>
+        </q-img>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup>
@@ -837,6 +1152,9 @@ import { TASK_DEFINITIONS, getTaskDefinition, generateTaskId, getAvailableOutput
 import { uploadMediaService } from 'src/services/uploadMedia'
 import { useMediaStore } from 'src/stores/useMediaStore'
 import MediaSelector from './MediaSelector.vue'
+import SavedWorkflowManager from './workflow/SavedWorkflowManager.vue'
+import TemplateManager from './TemplateManager.vue'
+import CollectionManager from './CollectionManager.vue'
 
 const workflowStore = useWorkflowStore()
 const mediaStore = useMediaStore()
@@ -847,6 +1165,18 @@ const showWorkflowDetails = ref(false)
 const imageFiles = ref(null)
 const uploadedImages = ref([])
 
+// Variables pour le modal d'image
+const showImageModal = ref(false)
+const modalImageUrl = ref('')
+const modalImageTitle = ref('')
+
+// Variables pour les templates
+const showTemplateManager = ref(false)
+
+// Variables pour les collections
+const showCollectionManager = ref(false)
+const currentCollection = ref(null)
+
 // État du Builder
 const builderMode = ref(true) // Démarrer directement en mode Builder
 const customWorkflow = ref({
@@ -856,17 +1186,45 @@ const customWorkflow = ref({
   tasks: []
 })
 
-// Workflows sauvegardés en localStorage
-const savedWorkflows = ref([])
+// État du gestionnaire de workflows
+const showSavedWorkflowManager = ref(false)
+
+// État du modal de preview d'image
+const showImagePreviewModal = ref(false)
+const previewImage = ref({
+  url: '',
+  name: ''
+})
 
 // Tâches disponibles pour le Builder
 const availableTasks = computed(() => TASK_DEFINITIONS)
+
+// Helper functions
+function getWorkflowTaskCount(workflow) {
+  // Pour workflows du builder (avec tasks directement)
+  if (workflow.tasks && Array.isArray(workflow.tasks)) {
+    return workflow.tasks.length
+  }
+  
+  // Pour workflows du store (avec workflow.tasks)
+  if (workflow.workflow?.tasks && Array.isArray(workflow.workflow.tasks)) {
+    return workflow.workflow.tasks.length
+  }
+  
+  // Pour workflows du store (avec workflow direct)
+  if (workflow.workflow && Array.isArray(workflow.workflow)) {
+    return workflow.workflow.length
+  }
+  
+  return 0
+}
 
 // Computed depuis le store
 const currentWorkflow = computed(() => workflowStore.currentWorkflow)
 const workflowInputs = computed(() => currentWorkflow.value?.inputs || {})
 const inputValues = computed(() => currentWorkflow.value?.inputValues || {})
 const workflowTemplates = computed(() => workflowStore.workflowTemplates)
+const savedWorkflows = computed(() => workflowStore.savedWorkflows)
 const executing = computed(() => workflowStore.isExecuting)
 const error = computed(() => workflowStore.error)
 const result = computed(() => workflowStore.lastResult)
@@ -955,8 +1313,9 @@ function addTask(taskType) {
     }
   })
   
-  // Initialiser les propriétés pour l'upload d'images
+  // Initialiser les propriétés pour l'upload d'images et sélection média
   newTask.uploadedImagePreviews = []
+  newTask.selectedMediaIds = []
   newTask.imageInputMode = 'variable'
   
   customWorkflow.value.tasks.push(newTask)
@@ -1128,6 +1487,28 @@ function handleTaskImageUpload(task, inputKey, files) {
 }
 
 /**
+ * Affiche l'aperçu d'une image dans un modal
+ */
+function showImagePreview(imageUrl, imageName) {
+  console.log('showImagePreview appelé avec:', { imageUrl, imageName })
+  previewImage.value = {
+    url: imageUrl,
+    name: imageName || 'Image'
+  }
+  console.log('previewImage défini:', previewImage.value)
+  showImagePreviewModal.value = true
+}
+
+/**
+ * Ouvre l'image dans un nouvel onglet
+ */
+function openImageInNewTab() {
+  if (previewImage.value.url) {
+    window.open(previewImage.value.url, '_blank')
+  }
+}
+
+/**
  * Supprime une image uploadée d'une tâche
  */
 function removeTaskImage(task, imageIndex) {
@@ -1160,9 +1541,209 @@ function removeTaskImage(task, imageIndex) {
   }
 }
 
+
+
+/**
+ * Résout un média par son ID (UUID ou collection legacy)
+ */
+async function resolveMedia(mediaId) {
+  // Essayer d'abord le mediaStore
+  let media = mediaStore.getMedia(mediaId)
+  
+  // Si pas trouvé dans mediaStore, chercher dans les collections par UUID
+  if (!media) {
+    console.log('🔄 Recherche dans les collections:', mediaId)
+    
+    try {
+      const response = await api.get('/collections/current/gallery')
+      if (response.data.success) {
+        // Chercher l'image par son UUID dans la collection
+        const img = response.data.images.find(image => {
+          // Extraire l'UUID depuis l'URL si mediaId est fourni
+          if (image.mediaId === mediaId) {
+            return true
+          }
+          
+          // Fallback: extraire UUID depuis l'URL
+          if (image.url) {
+            const urlMatch = image.url.match(/\/medias\/([^\/]+)$/)
+            if (urlMatch) {
+              const filename = urlMatch[1]
+              const imageId = filename.replace(/\.[^.]+$/, '')
+              return imageId === mediaId
+            }
+          }
+          
+          return false
+        })
+        
+        if (img) {
+          // Extraire le nom de fichier depuis l'URL
+          const urlMatch = img.url.match(/\/medias\/([^\/]+)$/)
+          const filename = urlMatch ? urlMatch[1] : `${mediaId}.jpg`
+          
+          // Créer un objet média temporaire
+          media = {
+            id: mediaId,
+            url: img.url,
+            type: 'image',
+            filename: filename,
+            originalName: img.description || filename,
+            size: 0
+          }
+          console.log('📚 Média collection trouvé:', media.url)
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur recherche collection:', error)
+    }
+  }
+  
+  // Fallback pour les anciennes images de collection sans UUID
+  if (!media && mediaId.startsWith('collection_')) {
+    console.log('🔄 Fallback: recherche image collection legacy:', mediaId)
+    
+    try {
+      const response = await api.get('/collections/current/gallery')
+      if (response.data.success) {
+        const indexMatch = mediaId.match(/collection_(\d+)/)
+        if (indexMatch) {
+          const index = parseInt(indexMatch[1])
+          const img = response.data.images[index]
+          
+          if (img) {
+            // Créer un objet média temporaire
+            media = {
+              id: mediaId,
+              url: img.url,
+              type: 'image',
+              filename: img.description || `image_${index}.jpg`,
+              originalName: img.description || `Image ${index + 1}`,
+              size: 0
+            }
+            console.log('📚 Média collection legacy trouvé:', media.url)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur fallback collection:', error)
+    }
+  }
+  
+  return media
+}
+
 /**
  * Gère la sélection de médias depuis la galerie pour une tâche
  */
+async function handleTaskMediaSelection(task, mediaIds) {
+  console.log('📂 Sélection de médias pour tâche:', task.id, mediaIds);
+  
+  // Normaliser mediaIds en array
+  let mediaIdsArray = []
+  if (mediaIds) {
+    if (typeof mediaIds === 'string') {
+      mediaIdsArray = [mediaIds]
+    } else if (Array.isArray(mediaIds)) {
+      mediaIdsArray = mediaIds
+    }
+  }
+  
+  if (!mediaIdsArray || mediaIdsArray.length === 0) {
+    // Réinitialiser si aucune sélection
+    task.selectedMediaIds = []
+    task.uploadedImagePreviews = []
+    
+    const taskDef = getTaskDefinition(task.type)
+    const inputKey = Object.keys(taskDef.inputs).find(
+      key => taskDef.inputs[key].type === 'images' || 
+             taskDef.inputs[key].type === 'image'
+    )
+    
+    if (inputKey) {
+      task.input[inputKey] = taskDef.inputs[inputKey].type === 'image' ? null : []
+    }
+    return
+  }
+  
+  // Initialiser les propriétés si nécessaire
+  if (!task.uploadedImagePreviews) {
+    task.uploadedImagePreviews = []
+  }
+  
+  try {
+    // Réinitialiser les aperçus
+    task.uploadedImagePreviews = []
+    
+    // Convertir chaque média en fichier (utilisation des UUIDs)
+    for (const mediaId of mediaIdsArray) {
+      console.log('🔍 Recherche média:', mediaId)
+      
+      const media = await resolveMedia(mediaId)
+      console.log('� Trouvé dans mediaStore:', !!media, media?.url)
+      
+      if (!media) {
+        console.warn('❌ Média non trouvé:', mediaId)
+        continue
+      }
+      
+      try {
+        // Créer un fichier à partir de l'URL du média
+        const response = await fetch(media.url)
+        const blob = await response.blob()
+        const file = new File([blob], media.filename, { type: media.type })
+        
+        // Ajouter à l'aperçu avec le mediaId
+        task.uploadedImagePreviews.push({
+          file,
+          url: media.url, // Utiliser l'URL du média directement
+          name: media.filename,
+          mediaId: mediaId // Important : stocker l'ID du média
+        })
+        
+      } catch (error) {
+        console.error('Erreur conversion média:', mediaId, error)
+        // Fallback: utiliser l'URL directement
+        task.uploadedImagePreviews.push({
+          file: null,
+          url: media.url,
+          name: media.filename,
+          mediaId: mediaId
+        })
+      }
+    }
+    
+    // Stocker dans l'input de la tâche
+    const taskDef = getTaskDefinition(task.type)
+    const inputKey = Object.keys(taskDef.inputs).find(
+      key => taskDef.inputs[key].type === 'images' || 
+             taskDef.inputs[key].type === 'image'
+    )
+    
+    if (inputKey) {
+      const inputDef = taskDef.inputs[inputKey]
+      const files = task.uploadedImagePreviews.map(p => p.file).filter(f => f !== null)
+      
+      if (inputDef.type === 'image') {
+        // Pour un input de type 'image' (singulier)
+        task.input[inputKey] = files[0] || null
+      } else {
+        // Pour un input de type 'images' (pluriel)
+        task.input[inputKey] = files
+      }
+    }
+    
+    console.log(`✅ ${task.uploadedImagePreviews.length} image(s) sélectionnée(s) depuis la galerie pour ${task.id}`)
+    
+  } catch (error) {
+    console.error('Erreur lors de la sélection des médias:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Erreur lors de la sélection des images',
+      position: 'top'
+    })
+  }
+}
 function onTaskMediaSelected(task, inputKey, medias) {
   console.log(`📸 Médias sélectionnés depuis la galerie pour ${task.id}.${inputKey}:`, medias)
   
@@ -1172,12 +1753,12 @@ function onTaskMediaSelected(task, inputKey, medias) {
   if (inputDef.type === 'image') {
     // Pour un input de type 'image' (singulier)
     const mediaId = medias.length > 0 ? medias[0].id : null
-    task.mediaIds = mediaId
+    task[`mediaIds_${inputKey}`] = mediaId
     task.input[inputKey] = mediaId
   } else {
     // Pour un input de type 'images' (pluriel)
     const mediaIds = medias.map(media => media.id)
-    task.mediaIds = mediaIds
+    task[`mediaIds_${inputKey}`] = mediaIds
     task.input[inputKey] = mediaIds
   }
 }
@@ -1210,34 +1791,51 @@ function getSelectedMediasInfo(mediaIds) {
 }
 
 /**
- * Supprime un ID de média d'une tâche
+ * Obtient les images référencées par une variable
  */
-function removeTaskMediaId(task, mediaIdToRemove) {
-  if (Array.isArray(task.mediaIds)) {
-    task.mediaIds = task.mediaIds.filter(id => id !== mediaIdToRemove)
-    task.input = { ...task.input }
-    
-    // Trouver la clé d'input pour les images
-    const taskDef = getTaskDefinition(task.type)
-    const inputKey = Object.keys(taskDef.inputs).find(
-      key => taskDef.inputs[key].type === 'images' || taskDef.inputs[key].type === 'image'
-    )
-    
-    if (inputKey) {
-      task.input[inputKey] = task.mediaIds
-    }
-  } else if (task.mediaIds === mediaIdToRemove) {
-    task.mediaIds = null
-    
-    // Trouver la clé d'input pour l'image
-    const taskDef = getTaskDefinition(task.type)
-    const inputKey = Object.keys(taskDef.inputs).find(
-      key => taskDef.inputs[key].type === 'image'
-    )
-    
-    if (inputKey) {
-      task.input[inputKey] = null
-    }
+function getReferencedImages(variableString) {
+  if (!variableString || typeof variableString !== 'string') return []
+  
+  // Matcher des variables comme {{input1.images}}, {{task2.images}}, etc.
+  const variableMatch = variableString.match(/\{\{(\w+)\.images?\}\}/)
+  if (!variableMatch) return []
+  
+  const taskId = variableMatch[1]
+  
+  // Chercher la tâche référencée dans le workflow
+  const referencedTask = customWorkflow.value.tasks.find(t => t.id === taskId)
+  if (!referencedTask) return []
+  
+  // Obtenir les images de cette tâche
+  if (referencedTask.uploadedImagePreviews && referencedTask.uploadedImagePreviews.length > 0) {
+    return referencedTask.uploadedImagePreviews.map(preview => ({
+      id: preview.mediaId || `preview_${Date.now()}`,
+      url: preview.url,
+      name: preview.name
+    }))
+  }
+  
+  // Fallback : chercher dans mediaIds
+  if (referencedTask.mediaIds) {
+    const ids = Array.isArray(referencedTask.mediaIds) ? referencedTask.mediaIds : [referencedTask.mediaIds]
+    return ids.map(id => mediaStore.getMedia(id)).filter(Boolean)
+  }
+  
+  return []
+}
+
+/**
+ * Supprime un ID de média d'une tâche pour un input spécifique
+ */
+function removeTaskMediaId(task, inputKey, mediaIdToRemove) {
+  const mediaIds = task[`mediaIds_${inputKey}`]
+  
+  if (Array.isArray(mediaIds)) {
+    task[`mediaIds_${inputKey}`] = mediaIds.filter(id => id !== mediaIdToRemove)
+    task.input[inputKey] = task[`mediaIds_${inputKey}`]
+  } else if (mediaIds === mediaIdToRemove) {
+    task[`mediaIds_${inputKey}`] = null
+    task.input[inputKey] = null
   }
 }
 
@@ -1245,7 +1843,7 @@ function removeTaskMediaId(task, mediaIdToRemove) {
  * Sauvegarde le workflow personnalisé dans localStorage
 ```
  */
-function saveCustomWorkflow() {
+function openSaveDialog() {
   if (!customWorkflow.value.tasks.length) {
     $q.notify({
       type: 'warning',
@@ -1264,87 +1862,67 @@ function saveCustomWorkflow() {
     },
     cancel: true
   }).onOk(name => {
-    customWorkflow.value.name = name
+    if (!name.trim()) return
     
-    // Récupérer les workflows existants
-    const saved = JSON.parse(localStorage.getItem('customWorkflows') || '[]')
-    
-    // Ajouter ou mettre à jour
-    const existing = saved.findIndex(w => w.id === customWorkflow.value.id)
-    if (existing >= 0) {
-      saved[existing] = { ...customWorkflow.value }
-    } else {
-      saved.push({ ...customWorkflow.value })
+    try {
+      // Sauvegarder via le store unifié
+      const saved = workflowStore.saveWorkflow(
+        name.trim(),
+        customWorkflow.value.description || `Workflow personnalisé créé le ${new Date().toLocaleDateString()}`,
+        customWorkflow.value
+      )
+      
+      if (saved) {
+        $q.notify({
+          type: 'positive',
+          message: `Workflow "${name}" sauvegardé !`,
+          position: 'top'
+        })
+      }
+    } catch (e) {
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors de la sauvegarde',
+        position: 'top'
+      })
     }
-    
-    localStorage.setItem('customWorkflows', JSON.stringify(saved))
-    
-    // Rafraîchir la liste des workflows sauvegardés
-    savedWorkflows.value = saved
-    
-    $q.notify({
-      type: 'positive',
-      message: `Workflow "${name}" sauvegardé !`,
-      position: 'top'
-    })
   })
 }
 
 /**
- * Charge un workflow sauvegardé
+ * Charge un workflow sauvegardé dans le builder
  */
-function loadSavedWorkflow(workflow) {
-  customWorkflow.value = JSON.parse(JSON.stringify(workflow))
+function loadWorkflowInBuilder(workflow) {
+  console.log('🔄 Chargement workflow dans builder:', workflow)
+  
+  // Si c'est un workflow de builder (avec tasks), on le charge directement
+  if (workflow.tasks) {
+    console.log('📝 Workflow avec tasks détecté:', workflow.tasks.length, 'tâches')
+    customWorkflow.value = JSON.parse(JSON.stringify(workflow))
+  } else {
+    // Sinon, c'est un workflow du store, on le convertit
+    console.log('🏪 Workflow du store détecté, conversion...')
+    console.log('Structure workflow:', workflow.workflow)
+    
+    const tasks = workflow.workflow?.tasks || workflow.workflow || []
+    customWorkflow.value = {
+      id: workflow.id || 'loaded-workflow',
+      name: workflow.name,
+      description: workflow.description,
+      tasks: Array.isArray(tasks) ? tasks : []
+    }
+    console.log('✅ Workflow converti:', customWorkflow.value.tasks.length, 'tâches')
+  }
+  
   $q.notify({
     type: 'info',
-    message: `Workflow "${workflow.name}" chargé`,
+    message: `Workflow "${workflow.name}" chargé dans le builder (${customWorkflow.value.tasks.length} tâches)`,
     position: 'top',
-    timeout: 1000
+    timeout: 2000
   })
 }
 
-/**
- * Duplique un workflow sauvegardé
- */
-function duplicateSavedWorkflow(workflow) {
-  const duplicate = JSON.parse(JSON.stringify(workflow))
-  duplicate.id = `${workflow.id}-copy-${Date.now()}`
-  duplicate.name = `${workflow.name} (copie)`
-  
-  const saved = JSON.parse(localStorage.getItem('customWorkflows') || '[]')
-  saved.push(duplicate)
-  localStorage.setItem('customWorkflows', JSON.stringify(saved))
-  savedWorkflows.value = saved
-  
-  $q.notify({
-    type: 'positive',
-    message: `Workflow "${duplicate.name}" dupliqué !`,
-    position: 'top'
-  })
-}
 
-/**
- * Supprime un workflow sauvegardé
- */
-function deleteSavedWorkflow(workflow) {
-  $q.dialog({
-    title: 'Confirmer la suppression',
-    message: `Supprimer définitivement le workflow "${workflow.name}" ?`,
-    cancel: true,
-    persistent: true
-  }).onOk(() => {
-    const saved = JSON.parse(localStorage.getItem('customWorkflows') || '[]')
-    const filtered = saved.filter(w => w.id !== workflow.id)
-    localStorage.setItem('customWorkflows', JSON.stringify(filtered))
-    savedWorkflows.value = filtered
-    
-    $q.notify({
-      type: 'info',
-      message: `Workflow "${workflow.name}" supprimé`,
-      position: 'top'
-    })
-  })
-}
 
 /**
  * Exporte le workflow en JSON
@@ -1476,22 +2054,44 @@ async function executeBuilderWorkflow() {
     preparedTasks.forEach(task => {
       Object.keys(task.input || {}).forEach(key => {
         const value = task.input[key]
+        const isVariable = typeof value === 'string' && value.includes('{{') && value.includes('}}')
+        
         console.log(`🔍 Input ${task.id}.${key}:`, {
           type: typeof value,
           isArray: Array.isArray(value),
           isFile: value instanceof File,
           isMediaId: typeof value === 'string' && value.length === 36,
+          isVariable: isVariable,
           value: value
         })
+        
+        // Ignorer les variables - elles seront résolues côté API
+        if (isVariable) {
+          console.log(`🔗 Variable détectée: ${task.id}.${key} = ${value} (pas d'upload nécessaire)`)
+          return // Passer à l'input suivant
+        }
         
         // Nouveau: Gérer les IDs de médias de la galerie ET les fichiers uploadés
         if (Array.isArray(value) && value.length > 0) {
           // Vérifier si c'est un array de fichiers ou d'IDs de médias
           if (value[0] instanceof File) {
-            // Array de fichiers à uploader
+            // Array de fichiers - vérifier s'ils ont déjà un mediaId
             console.log(`📁 Détecté array de fichiers: ${task.id}.${key}`, value.length)
+            
             value.forEach(file => {
-              if (!fileMapping.has(file)) {
+              // Vérifier si ce fichier vient de la galerie (a un mediaId)
+              const preview = task.uploadedImagePreviews?.find(p => p.file === file)
+              console.log(`🔍 Debug fichier ${file.name}:`, { 
+                hasPreview: !!preview, 
+                hasMediaId: preview?.mediaId,
+                previewData: preview 
+              })
+              
+              if (preview && preview.mediaId) {
+                console.log(`🗂️ Fichier ${file.name} a déjà un mediaId: ${preview.mediaId}`)
+                fileMapping.set(file, preview.mediaId)
+              } else if (!fileMapping.has(file)) {
+                console.log(`📤 Fichier ${file.name} sera uploadé`)
                 filesToUpload.push(file)
                 fileMapping.set(file, null) // Sera rempli après l'upload
               }
@@ -1501,9 +2101,15 @@ async function executeBuilderWorkflow() {
             console.log(`🗂️ Détecté array d'IDs de médias: ${task.id}.${key}`, value.length)
           }
         } else if (value instanceof File) {
-          // Fichier unique à uploader
+          // Fichier unique - vérifier s'il a déjà un mediaId
           console.log(`📁 Détecté fichier unique: ${task.id}.${key}`, value.name)
-          if (!fileMapping.has(value)) {
+          
+          // Vérifier si ce fichier vient de la galerie (a un mediaId)
+          const preview = task.uploadedImagePreviews?.find(p => p.file === value)
+          if (preview && preview.mediaId) {
+            console.log(`🗂️ Fichier ${value.name} a déjà un mediaId: ${preview.mediaId}`)
+            fileMapping.set(value, preview.mediaId)
+          } else if (!fileMapping.has(value)) {
             filesToUpload.push(value)
             fileMapping.set(value, null) // Sera rempli après l'upload
           }
@@ -1664,14 +2270,25 @@ function onTemplateMediaUploaded(inputKey, medias) {
 
 // Méthodes
 function loadTemplate(template) {
-  workflowStore.setCurrentWorkflow(template)
+  console.log('📋 Chargement template dans builder:', template)
+  
+  // Charger le template dans le builder
+  customWorkflow.value = {
+    id: template.id || 'template-workflow',
+    name: template.name || 'Template chargé',
+    description: template.description || 'Template chargé depuis la bibliothèque',
+    tasks: JSON.parse(JSON.stringify(template.workflow?.tasks || template.tasks || []))
+  }
+  
+  // Assurer le mode builder
+  builderMode.value = true
   
   // Clear uploaded images
   uploadedImages.value = []
   
   $q.notify({
     type: 'positive',
-    message: `Template "${template.name}" chargé`,
+    message: `Template "${template.name}" chargé dans le builder`,
     position: 'top'
   })
 }
@@ -1823,24 +2440,189 @@ watch(() => inputValues.value, (newValues) => {
 }, { deep: true })
 
 // Initialisation
-onMounted(() => {
+onMounted(async () => {
   // Charger le premier template si aucun workflow n'est chargé
   if (!currentWorkflow.value) {
     loadTemplate(workflowTemplates.value[0])
   }
   
-  // Charger les workflows personnalisés depuis localStorage
-  const saved = localStorage.getItem('customWorkflows')
-  if (saved) {
-    try {
-      savedWorkflows.value = JSON.parse(saved)
-      console.log(`✅ ${savedWorkflows.value.length} workflow(s) personnalisé(s) chargé(s) depuis localStorage`)
-    } catch (error) {
-      console.error('Erreur lors du chargement des workflows personnalisés:', error)
-      savedWorkflows.value = []
-    }
-  }
+  // Charger la collection courante
+  await loadCurrentCollection()
+  
+  // Les workflows sont maintenant gérés par le store unifié
 })
+
+// Fonctions pour le modal d'image
+function openImageModal(imageUrl, title = 'Image') {
+  modalImageUrl.value = imageUrl
+  modalImageTitle.value = title
+  showImageModal.value = true
+}
+
+function closeImageModal() {
+  showImageModal.value = false
+  modalImageUrl.value = ''
+  modalImageTitle.value = ''
+}
+
+function downloadImageDirectly(imageUrl, filename = 'image') {
+  if (!imageUrl) return
+  
+  $q.notify({
+    type: 'info',
+    message: 'Téléchargement en cours...',
+    position: 'top',
+    timeout: 2000,
+  })
+
+  // Télécharger l'image
+  fetch(imageUrl)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Erreur lors du téléchargement')
+      }
+      return response.blob()
+    })
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      
+      // Générer un nom de fichier avec timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')
+      const finalFilename = `${filename}-${timestamp}.jpg`
+      link.download = finalFilename
+      
+      document.body.appendChild(link)
+      
+      setTimeout(() => {
+        link.click()
+        
+        setTimeout(() => {
+          document.body.removeChild(link)
+          URL.revokeObjectURL(blobUrl)
+        }, 100)
+      }, 0)
+      
+      $q.notify({
+        type: 'positive',
+        message: 'Image téléchargée !',
+        position: 'top',
+      })
+    })
+    .catch(error => {
+      console.error('Erreur téléchargement:', error)
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors du téléchargement',
+        position: 'top',
+      })
+    })
+}
+
+// Fonctions pour les templates
+function createTemplateFromWorkflow() {
+  if (!customWorkflow.value.tasks.length) {
+    $q.notify({
+      type: 'warning',
+      message: 'Le workflow est vide',
+      position: 'top'
+    })
+    return
+  }
+  
+  $q.dialog({
+    title: 'Créer un template',
+    message: 'Nom du template :',
+    prompt: {
+      model: customWorkflow.value.name || 'Mon Template',
+      type: 'text'
+    },
+    cancel: true
+  }).onOk(async (templateName) => {
+    if (!templateName.trim()) return
+    
+    try {
+      const templateData = {
+        name: templateName.trim(),
+        description: `Template créé à partir du workflow "${customWorkflow.value.name || 'Sans nom'}"`,
+        category: 'custom',
+        icon: 'dashboard',
+        workflow: JSON.parse(JSON.stringify(customWorkflow.value)), // Deep copy
+        originalWorkflowId: customWorkflow.value.id
+      }
+      
+      const response = await api.post('/templates', templateData)
+      
+      if (response.data.success) {
+        $q.notify({
+          type: 'positive',
+          message: `Template "${templateName}" créé avec succès`,
+          position: 'top'
+        })
+        
+        // Proposer d'ouvrir le gestionnaire de templates
+        $q.dialog({
+          title: 'Template créé',
+          message: `Le template "${templateName}" a été créé avec succès. Voulez-vous ouvrir le gestionnaire de templates ?`,
+          cancel: true,
+          ok: {
+            label: 'Oui, ouvrir',
+            color: 'primary'
+          },
+          cancel: {
+            label: 'Plus tard',
+            flat: true
+          }
+        }).onOk(() => {
+          showTemplateManager.value = true
+        })
+      }
+    } catch (error) {
+      console.error('Erreur création template:', error)
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors de la création du template',
+        position: 'top'
+      })
+    }
+  })
+}
+
+function onTemplateLoaded(template) {
+  // Charger le template dans le builder
+  if (template.workflow) {
+    customWorkflow.value = {
+      id: `workflow_${Date.now()}`,
+      name: `Nouveau workflow basé sur ${template.name}`,
+      description: `Créé à partir du template: ${template.name}`,
+      tasks: JSON.parse(JSON.stringify(template.workflow.tasks || [])) // Deep copy
+    }
+    
+    console.log(`📋 Template "${template.name}" chargé dans le builder`)
+  }
+}
+
+async function loadCurrentCollection() {
+  try {
+    const response = await api.get('/collections/current/info')
+    
+    if (response.data.success && response.data.currentCollection) {
+      currentCollection.value = response.data.currentCollection
+      console.log('📚 Collection courante chargée:', currentCollection.value.name)
+    } else {
+      currentCollection.value = null
+    }
+  } catch (error) {
+    console.warn('⚠️ Impossible de charger la collection courante:', error.message)
+    currentCollection.value = null
+  }
+}
+
+function onCollectionChanged(collection) {
+  console.log('📚 Collection courante changée:', collection.name)
+  currentCollection.value = collection
+}
 </script>
 
 
@@ -1906,6 +2688,24 @@ onMounted(() => {
         }
       }
     }
+
+    // Styles pour la nouvelle liste d'images
+    .image-list-item {
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+      }
+      
+      .image-thumbnail {
+        border: 2px solid #e0e0e0;
+        transition: border-color 0.2s;
+        
+        &:hover {
+          border-color: var(--q-primary);
+        }
+      }
+    }
   }
   
   pre {
@@ -1915,6 +2715,47 @@ onMounted(() => {
     background: rgba(0,0,0,0.05);
     padding: 8px;
     border-radius: 4px;
+  }
+  
+  // Styles pour les boutons flottants sur les images
+  .image-container {
+    position: relative;
+    display: block;
+    width: 100%;
+  }
+
+  .image-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    z-index: 100;
+    gap: 8px;
+  }
+  
+  .result-image {
+    position: relative;
+    
+    &:hover .image-overlay {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  .image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease-in-out;
+    backdrop-filter: blur(2px);
   }
 }
 </style>

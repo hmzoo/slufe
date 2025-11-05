@@ -5,12 +5,14 @@
         <div class="row items-center">
           <div class="col">
             <div class="text-h6 text-primary">
-              <q-icon name="add_photo_alternate" size="sm" class="q-mr-sm" />
+              <q-icon name="photo_library" size="sm" class="q-mr-sm" />
               Images ({{ imageCount }})
+            </div>
+            <div class="text-caption text-grey-6">
+              Sélectionnez des images depuis la galerie ou prenez une photo
             </div>
           </div>
           <div class="col-auto">
-            <!-- Bouton caméra dans le header -->
             <q-btn
               color="secondary"
               label="Caméra"
@@ -24,38 +26,15 @@
 
       <q-separator />
 
-      <!-- Zone de drag & drop -->
-      <q-card-section
-        class="drop-zone"
-        :class="{ 'drag-over': isDragging }"
-        @dragover.prevent="isDragging = true"
-        @dragleave.prevent="isDragging = false"
-        @drop.prevent="onDrop"
-      >
-        <div class="text-center q-pa-md">
-          <q-icon name="cloud_upload" size="4rem" color="grey-6" />
-          <div class="text-subtitle1 text-grey-7 q-mt-sm">
-            Glissez-déposez vos images ici
-          </div>
-          <div class="text-caption text-grey-6">ou</div>
-          
-          <q-btn
-            color="primary"
-            label="Parcourir"
-            icon="folder_open"
-            class="q-mt-md"
-            @click="triggerFileInput"
-          />
-          
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/*"
-            multiple
-            style="display: none"
-            @change="onFileSelect"
-          />
-        </div>
+      <!-- Sélection de médias avec galerie -->
+      <q-card-section>
+        <MediaSelector
+          v-model="selectedMediaIds"
+          label="Sélectionner des images"
+          accept="image/*"
+          multiple
+          @update:model-value="onMediaSelection"
+        />
       </q-card-section>
 
       <!-- Liste des images -->
@@ -138,25 +117,86 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useMainStore } from 'src/stores/useMainStore';
+import { useMediaStore } from 'src/stores/useMediaStore';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import CameraCapture from './CameraCapture.vue';
+import MediaSelector from './MediaSelector.vue';
 
 const store = useMainStore();
+const mediaStore = useMediaStore();
 const $q = useQuasar();
 
-const fileInput = ref(null);
-const cameraInput = ref(null);
-const isDragging = ref(false);
+// Variables pour MediaSelector
+const selectedMediaIds = ref([]);
 const showCamera = ref(false);
 
+// Images depuis le store principal et médias sélectionnés
 const images = computed(() => store.images);
 const imageCount = computed(() => store.imageCount);
+const selectedMedias = computed(() => 
+  selectedMediaIds.value
+    .map(id => mediaStore.getMedia(id))
+    .filter(Boolean)
+);
 
-function triggerFileInput() {
-  fileInput.value.click();
+// Fonction de gestion de la sélection de médias
+async function onMediaSelection(mediaIds) {
+  console.log('📂 Médias sélectionnés:', mediaIds);
+  
+  if (!mediaIds || mediaIds.length === 0) {
+    return;
+  }
+  
+  try {
+    // Pour chaque média sélectionné, le convertir en image du store principal
+    for (const mediaId of mediaIds) {
+      const media = mediaStore.getMedia(mediaId);
+      if (!media) continue;
+      
+      // Créer un objet File-like à partir de l'URL du média
+      try {
+        const response = await fetch(media.url);
+        const blob = await response.blob();
+        const file = new File([blob], media.filename, { type: media.type });
+        
+        // Ajouter au store principal
+        await store.addImage(file);
+        
+      } catch (error) {
+        console.error('Erreur lors de la conversion du média:', error);
+        // Fallback: ajouter directement l'info sans fichier
+        store.images.push({
+          id: `media-${media.id}`,
+          name: media.filename,
+          url: media.url,
+          file: null,
+          analyzed: true,
+          analyzing: false,
+          description: media.description || `Image depuis galerie: ${media.filename}`
+        });
+      }
+    }
+    
+    $q.notify({
+      type: 'positive',
+      message: `${mediaIds.length} image(s) ajoutée(s) depuis la galerie`,
+      position: 'top'
+    });
+    
+    // Réinitialiser la sélection
+    selectedMediaIds.value = [];
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout des médias:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Erreur lors de l\'ajout des images',
+      position: 'top'
+    });
+  }
 }
 
 function openCamera() {
@@ -184,58 +224,31 @@ function handleCameraPhoto(file) {
   handleFiles([file]);
 }
 
-function onFileSelect(event) {
-  const files = Array.from(event.target.files);
-  handleFiles(files);
-  event.target.value = ''; // Reset input
-}
+// Fonction simplifiée pour la caméra uniquement
 
-function onDrop(event) {
-  isDragging.value = false;
-  const files = Array.from(event.dataTransfer.files).filter((file) =>
-    file.type.startsWith('image/')
-  );
-  handleFiles(files);
-}
-
-function handleFiles(files) {
-  console.log('📥 handleFiles appelé avec:', files.length, 'fichier(s)');
-  console.log('Fichiers détails:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
+async function handleFiles(files) {
+  console.log('📥 Ajout de fichiers (caméra):', files.length);
   
-  if (files.length === 0) {
-    $q.notify({
-      type: 'warning',
-      message: 'Veuillez sélectionner des fichiers image',
-      position: 'top',
-    });
-    return;
-  }
+  if (files.length === 0) return;
 
   const validFiles = files.filter((file) => {
-    // Vérifier la taille (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      console.warn('⚠️ Fichier trop volumineux:', file.name, file.size);
       $q.notify({
         type: 'warning',
         message: `${file.name} est trop volumineux (max 10MB)`,
-        position: 'top',
+        position: 'top'
       });
       return false;
     }
     return true;
   });
 
-  console.log('✅ Fichiers valides:', validFiles.length);
-
   if (validFiles.length > 0) {
-    console.log('➕ Ajout au store...');
-    // Les images seront automatiquement analysées par le store
-    store.addImages(validFiles);
+    await store.addImages(validFiles);
     $q.notify({
       type: 'positive',
-      message: `${validFiles.length} image(s) ajoutée(s) - Analyse en cours...`,
-      position: 'top',
-      timeout: 1500,
+      message: `${validFiles.length} image(s) ajoutée(s) depuis la caméra`,
+      position: 'top'
     });
   }
 }

@@ -21,19 +21,52 @@
 
       <!-- Résultat image -->
       <q-card-section v-else-if="result && result.type === 'image'" class="q-pa-none">
-        <q-img
-          :src="result.resultUrl"
-          spinner-color="primary"
-          fit="contain"
-          style="max-height: 600px"
-          class="result-image"
-        >
-          <template v-slot:error>
-            <div class="absolute-full flex flex-center bg-grey-3">
-              <q-icon name="broken_image" size="4rem" color="grey-6" />
+        <div class="image-container">
+          <q-img
+            :src="result.resultUrl"
+            spinner-color="primary"
+            fit="contain"
+            style="max-height: 600px; cursor: pointer"
+            class="result-image"
+            @click="testModal"
+          >
+            <template v-slot:error>
+              <div class="absolute-full flex flex-center bg-grey-3">
+                <q-icon name="broken_image" size="4rem" color="grey-6" />
+              </div>
+            </template>
+            
+            <!-- Overlay d'indication au survol -->
+            <div class="image-overlay" style="pointer-events: none;">
+              <q-icon name="zoom_in" size="2rem" color="white" />
+              <div class="text-white q-ml-sm">Cliquer pour agrandir</div>
             </div>
-          </template>
-        </q-img>
+          </q-img>
+          
+          <!-- Boutons flottants -->
+          <div class="image-actions">
+            <q-btn
+              round
+              color="primary"
+              icon="download"
+              size="md"
+              @click.stop="testDownload"
+              class="q-mr-sm"
+            >
+              <q-tooltip>Télécharger l'image</q-tooltip>
+            </q-btn>
+            
+            <q-btn
+              round
+              color="secondary"
+              icon="zoom_in"
+              size="md"
+              @click.stop="testModal"
+            >
+              <q-tooltip>Voir en grand</q-tooltip>
+            </q-btn>
+          </div>
+        </div>
         
         <div class="q-pa-md bg-grey-2">
           <div class="text-caption text-grey-7">
@@ -96,19 +129,52 @@
                 Étape 1: Image éditée
               </div>
             </div>
-            <q-img
-              :src="result.imageUrl"
-              spinner-color="primary"
-              fit="contain"
-              style="max-height: 400px"
-              class="result-image"
-            >
-              <template v-slot:error>
-                <div class="absolute-full flex flex-center bg-grey-3">
-                  <q-icon name="broken_image" size="3rem" color="grey-6" />
-                </div>
-              </template>
-            </q-img>
+            <div class="image-container">
+              <q-img
+                :src="result.imageUrl"
+                spinner-color="primary"
+                fit="contain"
+                style="max-height: 400px; cursor: pointer"
+                class="result-image"
+                @click="openImageModal(result.imageUrl, 'Image éditée')"
+              >
+                <template v-slot:error>
+                  <div class="absolute-full flex flex-center bg-grey-3">
+                    <q-icon name="broken_image" size="3rem" color="grey-6" />
+                  </div>
+                </template>
+                
+              <!-- Overlay d'indication au survol -->
+              <div class="image-overlay" style="pointer-events: none;">
+                <q-icon name="zoom_in" size="1.5rem" color="white" />
+                <div class="text-white q-ml-sm text-caption">Cliquer pour agrandir</div>
+              </div>
+              </q-img>
+              
+              <!-- Boutons flottants -->
+              <div class="image-actions">
+                <q-btn
+                  round
+                  color="primary"
+                  icon="download"
+                  size="sm"
+                  @click.stop="downloadImageDirectly(result.imageUrl, 'image-editee')"
+                  class="q-mr-xs"
+                >
+                  <q-tooltip>Télécharger l'image</q-tooltip>
+                </q-btn>
+                
+                <q-btn
+                  round
+                  color="secondary"
+                  icon="zoom_in"
+                  size="sm"
+                  @click.stop="openImageModal(result.imageUrl, 'Image éditée')"
+                >
+                  <q-tooltip>Voir en grand</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
           </div>
 
           <!-- Étape 2: Vidéo animée -->
@@ -207,11 +273,57 @@
         <q-btn flat color="white" label="Fermer" @click="clearError" />
       </template>
     </q-banner>
+    
+    <!-- Modal de visualisation d'image en grand -->
+    <q-dialog v-model="showImageModal" maximized>
+      <q-card class="bg-black text-white">
+        <!-- Header du modal -->
+        <q-card-section class="row items-center q-pa-md bg-grey-9">
+          <div class="text-h6">{{ modalImageTitle }}</div>
+          <q-space />
+          
+          <!-- Boutons d'actions -->
+          <q-btn
+            flat
+            color="white"
+            icon="download"
+            label="Télécharger"
+            @click="downloadModalImage"
+            class="q-mr-sm"
+          />
+          
+          <q-btn
+            flat
+            color="white"
+            icon="close"
+            label="Fermer"
+            @click="closeImageModal"
+          />
+        </q-card-section>
+        
+        <!-- Image en plein écran -->
+        <q-card-section class="flex flex-center q-pa-none" style="height: calc(100vh - 80px)">
+          <q-img
+            :src="modalImageUrl"
+            fit="contain"
+            style="max-width: 100%; max-height: 100%"
+            spinner-color="white"
+          >
+            <template v-slot:error>
+              <div class="absolute-full flex flex-center bg-grey-8">
+                <q-icon name="broken_image" size="4rem" color="grey-4" />
+                <div class="text-grey-4 q-ml-md">Erreur de chargement</div>
+              </div>
+            </template>
+          </q-img>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useMainStore } from 'src/stores/useMainStore';
 import { useQuasar } from 'quasar';
 
@@ -224,6 +336,11 @@ const error = computed(() => store.error);
 const originalPrompt = computed(() => store.prompt);
 const enhancedPrompt = computed(() => store.enhancedPrompt);
 const imageDescriptions = computed(() => store.imageDescriptions);
+
+// Variables pour le modal d'image
+const showImageModal = ref(false);
+const modalImageUrl = ref('');
+const modalImageTitle = ref('');
 
 function formatDate(timestamp) {
   if (!timestamp) return '';
@@ -360,12 +477,150 @@ function downloadMultiStepResult(type) {
     });
 }
 
+// Fonctions pour le modal d'image
+function openImageModal(imageUrl, title = 'Image') {
+  modalImageUrl.value = imageUrl;
+  modalImageTitle.value = title;
+  showImageModal.value = true;
+}
+
+function closeImageModal() {
+  showImageModal.value = false;
+  modalImageUrl.value = '';
+  modalImageTitle.value = '';
+}
+
+function downloadModalImage() {
+  if (!modalImageUrl.value) return;
+  
+  $q.notify({
+    type: 'info',
+    message: 'Téléchargement en cours...',
+    position: 'top',
+    timeout: 2000,
+  });
+
+  // Télécharger l'image depuis le modal
+  fetch(modalImageUrl.value)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Erreur lors du téléchargement');
+      }
+      return response.blob();
+    })
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      // Générer un nom de fichier basé sur le titre et timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      const filename = `${modalImageTitle.value.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${timestamp}.jpg`;
+      link.download = filename;
+      
+      document.body.appendChild(link);
+      
+      setTimeout(() => {
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 100);
+      }, 0);
+      
+      $q.notify({
+        type: 'positive',
+        message: 'Image téléchargée !',
+        position: 'top',
+      });
+    })
+    .catch(error => {
+      console.error('Erreur téléchargement:', error);
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors du téléchargement',
+        position: 'top',
+      });
+    });
+}
+
+// Fonction pour télécharger une image directement (boutons flottants)
+function downloadImageDirectly(imageUrl, filename = 'image') {
+  if (!imageUrl) return;
+  
+  $q.notify({
+    type: 'info',
+    message: 'Téléchargement en cours...',
+    position: 'top',
+    timeout: 2000,
+  });
+
+  // Télécharger l'image
+  fetch(imageUrl)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Erreur lors du téléchargement');
+      }
+      return response.blob();
+    })
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      // Générer un nom de fichier avec timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      const finalFilename = `${filename}-${timestamp}.jpg`;
+      link.download = finalFilename;
+      
+      document.body.appendChild(link);
+      
+      setTimeout(() => {
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 100);
+      }, 0);
+      
+      $q.notify({
+        type: 'positive',
+        message: 'Image téléchargée !',
+        position: 'top',
+      });
+    })
+    .catch(error => {
+      console.error('Erreur téléchargement:', error);
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors du téléchargement',
+        position: 'top',
+      });
+    });
+}
+
 function clearResult() {
   store.clearResult();
 }
 
 function clearError() {
   store.error = null;
+}
+
+// Fonctions de test
+function testModal() {
+  console.log('Test modal clicked!');
+  alert('Modal test - Cela fonctionne !');
+  if (result.value && result.value.resultUrl) {
+    openImageModal(result.value.resultUrl, 'Test Image');
+  }
+}
+
+function testDownload() {
+  console.log('Test download clicked!');
+  alert('Download test - Cela fonctionne !');
 }
 </script>
 
@@ -422,5 +677,47 @@ function clearError() {
   line-height: 1.5;
   font-style: italic;
   color: #424242;
+}
+
+// Styles pour les overlays d'images
+.result-image {
+  position: relative;
+  
+  &:hover .image-overlay {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease-in-out;
+  backdrop-filter: blur(2px);
+}
+
+// Styles pour les boutons flottants sur les images
+.image-container {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.image-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  z-index: 100;
+  gap: 8px;
 }
 </style>

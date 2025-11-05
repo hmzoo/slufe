@@ -211,11 +211,13 @@ function addFiles(files) {
     // Valider le fichier
     const validation = validateFile(file)
     
-        // Créer preview pour les images
-        let previewUrl = null
-        if (file.type.startsWith('image/')) {
-          previewUrl = uploadMediaService.createFilePreviewUrl(file)
-        }    selectedFiles.value.push({
+    // Créer preview pour les images
+    let previewUrl = null
+    if (file.type.startsWith('image/')) {
+      previewUrl = uploadMediaService.createFilePreviewUrl(file)
+    }
+    
+    selectedFiles.value.push({
       file,
       validation,
       previewUrl,

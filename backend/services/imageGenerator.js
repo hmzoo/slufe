@@ -1,6 +1,9 @@
 import Replicate from 'replicate';
+import fetch from 'node-fetch';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { IMAGE_DEFAULTS } from '../config/defaults.js';
+import { addImageToCurrentCollection } from './collectionManager.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -109,6 +112,39 @@ export async function generateImage({
 
     console.log('✅ Image générée:', imageUrl);
 
+    // Télécharger et ajouter l'image à la collection courante
+    try {
+      console.log('📥 Téléchargement et sauvegarde de l\'image générée...');
+      
+      // Télécharger l'image
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'image/png');
+      const filename = generateUniqueFileName(extension);
+      
+      // Sauvegarder localement
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      // Extraire l'UUID depuis le nom de fichier pour le mediaId
+      const mediaId = filename.replace(/\.[^.]+$/, '');
+      
+      // Ajouter l'image sauvegardée à la collection (URL relative)
+      await addImageToCurrentCollection({
+        url: `/medias/${filename}`, // URL relative
+        mediaId: mediaId, // UUID de l'image
+        description: `Image générée : "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`
+      });
+      
+      console.log(`💾 Image générée sauvegardée et ajoutée à la collection: ${filename}`);
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder l\'image générée à la collection courante:', error.message);
+    }
+
     return imageUrl;
   } catch (error) {
     console.error('❌ Erreur lors de la génération de l\'image:', error.message);
@@ -191,6 +227,39 @@ export async function transformImage({
     }
 
     console.log('✅ Image transformée:', imageUrl_result);
+
+    // Télécharger et ajouter l'image transformée à la collection courante
+    try {
+      console.log('📥 Téléchargement et sauvegarde de l\'image transformée...');
+      
+      // Télécharger l'image
+      const response = await fetch(imageUrl_result);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'image/png');
+      const filename = generateUniqueFileName(extension);
+      
+      // Sauvegarder localement
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      // Extraire l'UUID depuis le nom de fichier pour le mediaId
+      const mediaId = filename.replace(/\.[^.]+$/, '');
+      
+      // Ajouter l'image sauvegardée à la collection (URL relative)
+      await addImageToCurrentCollection({
+        url: `/medias/${filename}`, // URL relative
+        mediaId: mediaId, // UUID de l'image
+        description: `Image transformée : "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`
+      });
+      
+      console.log(`💾 Image transformée sauvegardée et ajoutée à la collection: ${filename}`);
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder l\'image transformée à la collection courante:', error.message);
+    }
 
     return imageUrl_result;
   } catch (error) {

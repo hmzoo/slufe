@@ -7,7 +7,7 @@ import fs from 'fs';
  * @param {string} originalExtension - Extension originale (ex: '.jpg', '.png', '.mp4')
  * @returns {string} Nom de fichier unique (ex: 'a1b2c3d4-e5f6-7890.jpg')
  */
-export function generateUniqueMediaName(originalExtension) {
+function generateUniqueMediaName(originalExtension) {
   const uuid = uuidv4();
   const ext = originalExtension.startsWith('.') ? originalExtension : `.${originalExtension}`;
   return `${uuid}${ext}`;
@@ -18,7 +18,7 @@ export function generateUniqueMediaName(originalExtension) {
  * @param {string} filename - Nom du fichier (ex: 'a1b2c3d4.jpg')
  * @returns {string} Chemin complet vers le fichier
  */
-export function getMediaPath(filename) {
+function getMediaPath(filename) {
   return path.join(process.cwd(), 'medias', filename);
 }
 
@@ -27,7 +27,7 @@ export function getMediaPath(filename) {
  * @param {string} filename - Nom du fichier
  * @returns {string} URL relative (ex: '/medias/filename.jpg')
  */
-export function getMediaUrl(filename) {
+function getMediaUrl(filename) {
   return `/medias/${filename}`;
 }
 
@@ -37,7 +37,7 @@ export function getMediaUrl(filename) {
  * @param {string} extension - Extension (.jpg, .png, etc.)
  * @returns {Promise<{filename: string, path: string, url: string}>}
  */
-export async function saveMediaFile(buffer, extension) {
+async function saveMediaFile(buffer, extension) {
   // Générer un nom unique
   const filename = generateUniqueMediaName(extension);
   const filePath = getMediaPath(filename);
@@ -63,7 +63,7 @@ export async function saveMediaFile(buffer, extension) {
  * @param {string} workflowId - ID du workflow
  * @returns {string} Chemin vers le fichier JSON du workflow
  */
-export function getWorkflowPath(workflowId) {
+function getWorkflowPath(workflowId) {
   return path.join(process.cwd(), 'workflows', `${workflowId}.json`);
 }
 
@@ -72,7 +72,7 @@ export function getWorkflowPath(workflowId) {
  * @param {string} workflowId - ID du workflow
  * @returns {string} URL relative vers le workflow JSON
  */
-export function getWorkflowUrl(workflowId) {
+function getWorkflowUrl(workflowId) {
   return `/workflows/${workflowId}.json`;
 }
 
@@ -82,7 +82,7 @@ export function getWorkflowUrl(workflowId) {
  * @param {Object} workflowData - Données du workflow
  * @returns {Promise<{filename: string, path: string, url: string}>}
  */
-export async function saveWorkflowFile(workflowId, workflowData) {
+async function saveWorkflowFile(workflowId, workflowData) {
   const filename = `${workflowId}.json`;
   const filePath = getWorkflowPath(workflowId);
   
@@ -102,7 +102,7 @@ export async function saveWorkflowFile(workflowId, workflowData) {
   };
 }
 
-export default {
+export {
   generateUniqueMediaName,
   getMediaPath,
   getMediaUrl,

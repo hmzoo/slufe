@@ -53,12 +53,23 @@ export const TASK_DEFINITIONS = {
     description: 'Modifie des images selon un prompt d\'édition',
     model: 'Qwen-Image-Edit-Plus',
     inputs: {
-      images: {
-        type: 'images',
-        label: 'Images à modifier',
+      image1: {
+        type: 'image',
+        label: 'Image 1',
         required: true,
-        acceptsVariable: true,
-        multiple: true
+        acceptsVariable: true
+      },
+      image2: {
+        type: 'image',
+        label: 'Image 2 (optionnelle)',
+        required: false,
+        acceptsVariable: true
+      },
+      image3: {
+        type: 'image',
+        label: 'Image 3 (optionnelle)',
+        required: false,
+        acceptsVariable: true
       },
       editPrompt: {
         type: 'text',

@@ -1,6 +1,6 @@
 <template>
   <div class="media-selector">
-    <!-- Input avec bouton de sélection -->
+    <!-- Input simple avec boutons galerie -->
     <q-input
       :model-value="displayValue"
       readonly
@@ -22,14 +22,6 @@
             title="Choisir depuis la galerie"
           />
           <q-btn
-            icon="cloud_upload"
-            flat
-            dense
-            @click="triggerUpload"
-            :disable="disabled"
-            title="Upload nouveau fichier"
-          />
-          <q-btn
             v-if="modelValue"
             icon="clear"
             flat
@@ -43,7 +35,7 @@
     </q-input>
 
     <!-- Preview rapide -->
-    <div v-if="selectedMedia" class="media-preview-compact q-mt-sm">
+    <div v-if="selectedMedia && !hidePreview" class="media-preview-compact q-mt-sm">
       <q-card flat class="q-pa-sm">
         <div class="row items-center no-wrap">
           <div class="col-auto q-mr-sm">
@@ -101,19 +93,14 @@
     <!-- Dialog Galerie -->
     <q-dialog v-model="showGallery" maximized>
       <q-card>
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Sélectionner un média</div>
-          <q-space />
-          <q-btn icon="close" flat round dense @click="showGallery = false" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-none">
+        <q-card-section class="q-pa-md">
           <SimpleMediaGallery
             v-model="gallerySelection"
             :multiple="multiple"
             :accept="acceptTypes"
             @selected="onGallerySelection"
             @upload="showUploadDialog = true"
+            @close="showGallery = false"
           />
         </q-card-section>
       </q-card>
@@ -123,7 +110,7 @@
     <q-dialog v-model="showUploadDialog">
       <MediaUploadDialog
         :accept="acceptTypes"
-        :multiple="multiple"
+        :multiple="true"
         @uploaded="onUploadComplete"
         @close="showUploadDialog = false"
       />
@@ -136,6 +123,8 @@
         @close="showPreviewDialog = false"
       />
     </q-dialog>
+
+
   </div>
 </template>
 
@@ -143,6 +132,7 @@
 import { ref, computed, watch } from 'vue'
 import { useMediaStore } from 'src/stores/useMediaStore'
 import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 import SimpleMediaGallery from './SimpleMediaGallery.vue'
 import MediaUploadDialog from './MediaUploadDialog.vue'
 import MediaPreviewDialog from './MediaPreviewDialog.vue'
@@ -184,6 +174,10 @@ const props = defineProps({
   errorMessage: {
     type: String,
     default: ''
+  },
+  hidePreview: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -200,6 +194,7 @@ const showUploadDialog = ref(false)
 const showPreviewDialog = ref(false)
 const gallerySelection = ref(null)
 const fileInput = ref(null)
+const resolvedCollectionMedia = ref(null)
 
 // Computed
 const acceptTypes = computed(() => props.accept)
@@ -221,10 +216,26 @@ const selectedMedia = computed(() => {
     // Pour le mode multiple, on affiche le premier média ou un résumé
     const ids = Array.isArray(props.modelValue) ? props.modelValue : [props.modelValue]
     if (ids.length === 0) return null
-    return mediaStore.getMedia(ids[0])
+    
+    const mediaId = ids[0]
+    const media = mediaStore.getMedia(mediaId)
+    
+    // Si pas trouvé et c'est un ID de collection, utiliser le média résolu
+    if (!media && mediaId && mediaId.startsWith('collection_') && resolvedCollectionMedia.value) {
+      return resolvedCollectionMedia.value
+    }
+    
+    return media
   } else {
     // Mode single
-    return mediaStore.getMedia(props.modelValue)
+    const media = mediaStore.getMedia(props.modelValue)
+    
+    // Si pas trouvé et c'est un ID de collection, utiliser le média résolu
+    if (!media && props.modelValue && props.modelValue.startsWith('collection_') && resolvedCollectionMedia.value) {
+      return resolvedCollectionMedia.value
+    }
+    
+    return media
   }
 })
 
@@ -235,7 +246,7 @@ const displayValue = computed(() => {
     const ids = Array.isArray(props.modelValue) ? props.modelValue : [props.modelValue]
     if (ids.length === 0) return ''
     if (ids.length === 1) {
-      const media = mediaStore.getMedia(ids[0])
+      const media = selectedMedia.value
       return media ? media.originalName || media.filename : 'Média introuvable'
     }
     return `${ids.length} médias sélectionnés`
@@ -254,10 +265,51 @@ watch(() => props.modelValue, (newValue) => {
   gallerySelection.value = newValue
 }, { immediate: true })
 
+// Watcher pour résoudre les médias de collection
+watch(() => props.modelValue, async (newValue) => {
+  if (!newValue) {
+    resolvedCollectionMedia.value = null
+    return
+  }
+  
+  // Identifier le premier ID (pour mode multiple ou single)
+  let mediaId = newValue
+  if (Array.isArray(newValue)) {
+    mediaId = newValue[0]
+  }
+  
+  // Si c'est un ID de collection, le résoudre
+  if (mediaId && mediaId.startsWith('collection_')) {
+    try {
+      const response = await api.get('/collections/current/gallery')
+      if (response.data.success) {
+        const indexMatch = mediaId.match(/collection_(\d+)/)
+        if (indexMatch) {
+          const index = parseInt(indexMatch[1])
+          const img = response.data.images[index]
+          
+          if (img) {
+            resolvedCollectionMedia.value = {
+              id: mediaId,
+              url: img.url,
+              type: 'image',
+              filename: img.description || `image_${index}.jpg`,
+              originalName: img.description || `Image ${index + 1}`,
+              size: 0
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur résolution média collection:', error)
+      resolvedCollectionMedia.value = null
+    }
+  } else {
+    resolvedCollectionMedia.value = null
+  }
+}, { immediate: true })
+
 // Méthodes
-function triggerUpload() {
-  showUploadDialog.value = true
-}
 
 function onFileSelected(event) {
   const files = Array.from(event.target.files)
@@ -366,6 +418,8 @@ function getMediaColor(type) {
     default: return 'grey'
   }
 }
+
+
 </script>
 
 <style scoped>

@@ -1,0 +1,65 @@
+{
+  "id": "template_1762354138140_iwgrinrpu",
+  "name": "tmpl_img-edit-enhanced",
+  "description": "Template créé à partir du workflow \"image edit enhanced\"",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "image edit enhanced",
+    "description": "Workflow créé avec le builder",
+    "tasks": [
+      {
+        "id": "input1",
+        "type": "input_text",
+        "input": {
+          "label": "Prompt",
+          "placeholder": "",
+          "defaultValue": ""
+        },
+        "userInputValue": "tourne la camera de 90 degres sur la droite autours du sujet"
+      },
+      {
+        "id": "input2",
+        "type": "input_images",
+        "input": {
+          "label": "Image1",
+          "multiple": false
+        }
+      },
+      {
+        "id": "describe1",
+        "type": "describe_images",
+        "input": {
+          "images": "{{input2.images}}",
+          "question": "",
+          "language": "en"
+        }
+      },
+      {
+        "id": "enhance1",
+        "type": "enhance_prompt",
+        "input": {
+          "prompt": "{{input1.text}}",
+          "targetType": "edit",
+          "style": "photographic",
+          "imageDescription1": "{{describe1.descriptions}}",
+          "imageDescription2": ""
+        }
+      },
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "input": {
+          "image1": "{{input2.images}}",
+          "image2": null,
+          "image3": null,
+          "editPrompt": "{{enhance1.enhanced_prompt}}",
+          "aspectRatio": "original"
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-05T14:48:58.141Z",
+  "createdFrom": "image-edit-enhanced-1762349970246",
+  "tags": []
+}

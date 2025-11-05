@@ -1,6 +1,9 @@
 import Replicate from 'replicate';
+import fetch from 'node-fetch';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { EDIT_DEFAULTS, IMAGE_DEFAULTS } from '../config/defaults.js';
+import { addImageToCurrentCollection } from './collectionManager.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
 
 /**
  * Service d'édition d'images avec Qwen Image Edit Plus
@@ -31,20 +34,57 @@ export function validateEditParams(params) {
     errors.push('Le prompt est requis et doit être une chaîne non vide');
   }
 
-  // Validation des images
-  if (!params.images || !Array.isArray(params.images) || params.images.length === 0) {
-    errors.push('Au moins une image est requise');
+  // Debug: Afficher les paramètres reçus
+  console.log('🔍 Validation imageEditor - Paramètres reçus:', {
+    hasImage1: !!params.image1,
+    hasImage2: !!params.image2,
+    hasImage3: !!params.image3,
+    image1Type: typeof params.image1,
+    image1Value: params.image1,
+    allKeys: Object.keys(params)
+  });
+
+  // Validation des images - nouveau format avec image1, image2, image3
+  const images = [];
+  
+  // Vérifier image1 (obligatoire)
+  if (!params.image1) {
+    console.log('❌ image1 manquante dans validation');
+    errors.push('image1 est requise');
   } else {
-    // Vérifier que toutes les images sont des URLs valides ou des buffers
-    params.images.forEach((img, index) => {
-      if (typeof img !== 'string' && !Buffer.isBuffer(img)) {
-        errors.push(`Image ${index + 1} doit être une URL string ou un Buffer`);
-      }
-      if (typeof img === 'string' && !img.startsWith('http://') && !img.startsWith('https://') && !img.startsWith('data:')) {
-        errors.push(`Image ${index + 1} doit être une URL valide (http/https) ou une data URI`);
-      }
-    });
+    if (typeof params.image1 !== 'string' && !Buffer.isBuffer(params.image1)) {
+      errors.push('image1 doit être une URL string ou un Buffer');
+    }
+    if (typeof params.image1 === 'string' && !params.image1.startsWith('http://') && !params.image1.startsWith('https://') && !params.image1.startsWith('data:')) {
+      errors.push('image1 doit être une URL valide (http/https) ou une data URI');
+    }
+    images.push(params.image1);
   }
+  
+  // Vérifier image2 (optionnelle)
+  if (params.image2) {
+    if (typeof params.image2 !== 'string' && !Buffer.isBuffer(params.image2)) {
+      errors.push('image2 doit être une URL string ou un Buffer');
+    }
+    if (typeof params.image2 === 'string' && !params.image2.startsWith('http://') && !params.image2.startsWith('https://') && !params.image2.startsWith('data:')) {
+      errors.push('image2 doit être une URL valide (http/https) ou une data URI');
+    }
+    images.push(params.image2);
+  }
+  
+  // Vérifier image3 (optionnelle)
+  if (params.image3) {
+    if (typeof params.image3 !== 'string' && !Buffer.isBuffer(params.image3)) {
+      errors.push('image3 doit être une URL string ou un Buffer');
+    }
+    if (typeof params.image3 === 'string' && !params.image3.startsWith('http://') && !params.image3.startsWith('https://') && !params.image3.startsWith('data:')) {
+      errors.push('image3 doit être une URL valide (http/https) ou une data URI');
+    }
+    images.push(params.image3);
+  }
+  
+  // Mettre à jour params.images pour compatibilité avec le reste du code
+  params.images = images;
 
   // Validation de aspect_ratio
   const validAspectRatios = ['1:1', '16:9', '9:16', '4:3', '3:4', 'match_input_image'];
@@ -85,7 +125,9 @@ export function validateEditParams(params) {
  * 
  * @param {Object} params - Paramètres d'édition
  * @param {string} params.prompt - Instructions textuelles pour l'édition
- * @param {Array<string>} params.images - URLs ou data URIs des images à éditer
+ * @param {string} [params.image1] - URL ou data URI de la première image (requise)
+ * @param {string} [params.image2] - URL ou data URI de la deuxième image (optionnelle)
+ * @param {string} [params.image3] - URL ou data URI de la troisième image (optionnelle)
  * @param {string} [params.aspectRatio='16:9'] - Ratio de l'image de sortie
  * @param {boolean} [params.goFast=true] - Mode rapide (sacrifie un peu de qualité)
  * @param {number|null} [params.seed=null] - Graine aléatoire pour reproductibilité
@@ -96,7 +138,9 @@ export function validateEditParams(params) {
  */
 export async function editImage({
   prompt,
-  images,
+  image1,
+  image2,
+  image3,
   aspectRatio = IMAGE_DEFAULTS.aspectRatio,
   goFast = true,
   seed = null,
@@ -107,7 +151,9 @@ export async function editImage({
   // Validation des paramètres
   const validation = validateEditParams({
     prompt,
-    images,
+    image1,
+    image2,
+    image3,
     aspectRatio,
     outputFormat,
     outputQuality,
@@ -117,6 +163,12 @@ export async function editImage({
   if (!validation.valid) {
     throw new Error(`Paramètres invalides: ${validation.errors.join(', ')}`);
   }
+
+  // Construire le tableau d'images à partir des paramètres individuels
+  const images = [];
+  if (image1) images.push(image1);
+  if (image2) images.push(image2);  
+  if (image3) images.push(image3);
 
   // Vérifier si Replicate est configuré
   if (!isReplicateConfigured()) {
@@ -141,8 +193,8 @@ export async function editImage({
     console.log(`🖼️  Images: ${images.length}`);
     console.log(`⚙️  Paramètres: aspectRatio=${aspectRatio}, goFast=${goFast}, format=${outputFormat}`);
 
-    // Convertir les Buffers en data URIs si nécessaire
-    const processedImages = images.map((img, index) => {
+    // Convertir les Buffers et URLs locales en data URIs si nécessaire
+    const processedImages = await Promise.all(images.map(async (img, index) => {
       if (Buffer.isBuffer(img)) {
         console.log(`📦 Conversion de l'image ${index + 1} (Buffer) en data URI...`);
         const base64 = img.toString('base64');
@@ -156,8 +208,29 @@ export async function editImage({
         const base64 = img.buffer.toString('base64');
         return `data:${mimeType};base64,${base64}`;
       }
+      // Si c'est une URL locale, la télécharger et la convertir en data URI
+      if (typeof img === 'string' && img.startsWith('http://localhost:')) {
+        console.log(`🌐 Téléchargement de l'image locale ${index + 1}: ${img}`);
+        try {
+          const response = await fetch(img);
+          if (!response.ok) {
+            throw new Error(`Erreur téléchargement: ${response.status}`);
+          }
+          
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const contentType = response.headers.get('content-type') || 'image/jpeg';
+          const base64 = buffer.toString('base64');
+          
+          console.log(`✅ Image ${index + 1} téléchargée et convertie (${Math.round(buffer.length / 1024)}KB)`);
+          return `data:${contentType};base64,${base64}`;
+        } catch (error) {
+          console.error(`❌ Erreur téléchargement image ${index + 1}:`, error.message);
+          throw new Error(`Impossible de télécharger l'image locale: ${error.message}`);
+        }
+      }
       return img; // Déjà une URL ou data URI
-    });
+    }));
 
     // Préparer les paramètres pour Replicate
     const input = {
@@ -212,6 +285,42 @@ export async function editImage({
       throw new Error('Format de sortie inattendu de Replicate');
     }
 
+    // Télécharger les images et les ajouter à la collection courante
+    try {
+      for (const imageUrl of imageUrls) {
+        console.log('📥 Téléchargement et sauvegarde de l\'image éditée...');
+        
+        // Télécharger l'image
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+          throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const extension = getFileExtension(response.headers.get('content-type') || 'image/png');
+        const filename = generateUniqueFileName(extension);
+        
+        // Sauvegarder localement
+        const savedFile = saveMediaFile(filename, buffer);
+        
+        // Extraire l'UUID depuis le nom de fichier pour le mediaId
+        const mediaId = filename.replace(/\.[^.]+$/, '');
+        
+        // Ajouter l'image sauvegardée à la collection (URL relative)
+        await addImageToCurrentCollection({
+          url: `/medias/${filename}`, // URL relative
+          mediaId: mediaId, // UUID de l'image
+          description: `Image éditée : "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`
+        });
+        
+        console.log(`💾 Image éditée sauvegardée et ajoutée à la collection: ${filename}`);
+      }
+      console.log(`📚 ${imageUrls.length} image(s) éditée(s) sauvegardée(s) et ajoutée(s) à la collection courante`);
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder les images éditées à la collection courante:', error.message);
+    }
+
     return {
       success: true,
       imageUrls: imageUrls,
@@ -248,7 +357,7 @@ export async function editSingleImage({
 }) {
   return editImage({
     prompt,
-    images: [imageUrl],
+    image1: imageUrl,
     aspectRatio,
     goFast,
     seed,

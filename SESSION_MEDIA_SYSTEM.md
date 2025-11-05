@@ -1,11 +1,14 @@
-# 📋 Résumé de la Session - Système de Gestion des Médias
+# 📋 Résumé de la Session - Système de Gestion des Médias et Collections
 
-## 🎯 **Objectif Initial**
+## 🎯 **Objectif Initial (Session 1 - 4 novembre)**
 Créer un système de stockage local des médias avec galerie pour réutiliser les images/vidéos durant une session sans re-téléchargement, en utilisant des IDs de référence.
+
+## 🎯 **Objectif Session 2 (5 novembre)**
+Ajouter un système de collections pour organiser les images, avec intégration automatique des images générées et interface de galerie améliorée.
 
 ---
 
-## ✅ **Nouveautés Implémentées**
+## ✅ **Nouveautés Implémentées - Session 1 (4 novembre)**
 
 ### 1. 🗂️ **Système de Stockage Unifié**
 - **Dossier centralisé** : `/backend/medias/` pour tous les fichiers
@@ -45,6 +48,44 @@ Créer un système de stockage local des médias avec galerie pour réutiliser l
 
 ---
 
+## ✅ **Nouveautés Session 2 (5 novembre) - Système de Collections**
+
+### 1. 📁 **Système de Collections Complet**
+- **Backend** : `collectionManager.js` avec CRUD complet
+- **Routes API** : `/api/collections/*` pour gestion collections
+- **Stockage JSON** : Collections sauvegardées dans `/backend/collections/`
+- **Concept "Collection Courante"** : Auto-ajout des images générées
+
+### 2. 🎨 **Interface de Gestion des Collections**
+- **`CollectionManager.vue`** : Interface complète de gestion
+- **`CollectionImageUpload.vue`** : Upload unifié vers collections
+- **`SimpleMediaGallery.vue`** : Galerie pour sélection dans workflows
+
+### 3. 🖼️ **Vue Agrandie avec Navigation**
+- **Navigation par flèches** : Boutons + raccourcis clavier ← →
+- **Interface immersive** : Plein écran avec overlay
+- **Miniatures cliquables** : Navigation rapide
+- **Actions intégrées** : Sélection/modification directe
+
+### 4. 🔄 **Auto-Génération dans Collections**
+- **Images générées** : Automatiquement ajoutées à la collection courante
+- **Images éditées** : Téléchargées localement puis ajoutées
+- **URLs locales** : Plus d'URLs Replicate externes stockées
+- **MediaId correct** : UUID extrait automatiquement
+
+### 5. 🛠️ **Architecture Simplifiée**
+- **Collections uniquement** : Abandon du système dual mediaStore/collections
+- **Upload direct** : Routes `/collections/:id/upload` et `/collections/current/upload`
+- **Backend responsable** : Génération UUID, nommage, stockage côté serveur
+- **Frontend allégé** : Ne gère que l'affichage et les interactions
+
+### 6. 🎯 **Résolution Médias Améliorée**
+- **WorkflowRunner** : Fonction `resolveMedia()` pour trouver dans collections
+- **MediaSelector** : Support des images de collections avec fallback
+- **IDs réels** : Utilisation des vrais UUIDs au lieu d'IDs collection artificiels
+
+---
+
 ## 🔧 **Modifications Techniques Clés**
 
 ### Backend
@@ -65,7 +106,7 @@ if (typeof image === 'string' && !image.includes('/')) {
 }
 ```
 
-### Frontend
+### Frontend Session 1
 ```javascript
 // Store réactif
 const mediaStore = useMediaStore();
@@ -76,11 +117,54 @@ const media = mediaStore.getMedia(id); // Avec tracking usage
 <MediaSelector v-model="selectedImages" multiple />
 ```
 
+### Backend Session 2 - Collections
+```javascript
+// Gestionnaire de collections
+import { addImageToCurrentCollection } from './collectionManager.js';
+
+// Auto-ajout des images générées
+const savedImage = await downloadAndSaveImage(imageUrl);
+await addImageToCurrentCollection({
+  url: savedImage.url, 
+  mediaId: savedImage.mediaId,
+  description: `Image générée : "${prompt}"`
+});
+
+// Upload direct vers collection
+POST /collections/:id/upload
+// Frontend envoie fichiers bruts, backend gère tout
+```
+
+### Frontend Session 2 - Collections
+```javascript
+// Vue agrandie avec navigation
+function openImageViewer(media) {
+  const index = displayedMedias.value.findIndex(m => m.id === media.id)
+  currentImageIndex.value = index
+  currentViewedImage.value = media
+  showImageViewer.value = true
+}
+
+// Résolution des médias dans WorkflowRunner
+async function resolveMedia(mediaId) {
+  let media = mediaStore.getMedia(mediaId)
+  if (!media) {
+    // Chercher dans les collections
+    const response = await api.get('/collections/current/gallery')
+    const img = response.data.images.find(image => {
+      return image.mediaId === mediaId || extractUUIDFromUrl(image.url) === mediaId
+    })
+  }
+  return media
+}
+```
+
 ---
 
 ## 🏗️ **Architecture des Fichiers Créés/Modifiés**
 
-### Nouveaux Fichiers Frontend
+### Nouveaux Fichiers Session 1
+#### Frontend
 - `frontend/src/stores/useMediaStore.js` - Store Pinia central
 - `frontend/src/components/MediaSelector.vue` - Sélecteur pour formulaires
 - `frontend/src/components/MediaGallery.vue` - Interface galerie complète
@@ -88,19 +172,37 @@ const media = mediaStore.getMedia(id); // Avec tracking usage
 - `frontend/src/components/MediaPreviewDialog.vue` - Preview des médias
 - `frontend/src/services/uploadMedia.js` - Service API upload
 
-### Nouveaux Fichiers Backend
+#### Backend
 - `backend/services/tasks/ImageResizeCropTask.js` - Tâche de redimensionnement
 - `backend/utils/fileUtils.js` - Utilitaires de gestion fichiers
 
-### Fichiers Modifiés
+### Nouveaux Fichiers Session 2 - Collections
+#### Backend
+- `backend/services/collectionManager.js` - Gestionnaire collections complet
+- `backend/routes/collections.js` - API REST pour collections
+- `backend/collections/` - Dossier de stockage JSON des collections
+
+#### Frontend  
+- `frontend/src/components/CollectionManager.vue` - Interface gestion collections
+- `frontend/src/components/CollectionImageUpload.vue` - Upload unifié vers collections
+- `frontend/src/components/SimpleMediaGallery.vue` - Galerie pour sélection workflow
+
+### Fichiers Modifiés Session 1
 - `backend/services/imageResizeCrop.js` - Support URLs HTTP
 - `frontend/src/components/WorkflowRunner.vue` - Intégration galerie
 - `backend/routes/upload.js` - Routes API étendues
 - `backend/services/WorkflowRunner.js` - Support références médias
 
+### Fichiers Modifiés Session 2
+- `frontend/src/components/WorkflowRunner.vue` - Intégration collections + navigation
+- `frontend/src/components/MediaSelector.vue` - Support collections avec résolution
+- `backend/services/imageGenerator.js` - Auto-ajout images générées 
+- `backend/services/imageEditor.js` - Auto-ajout images éditées
+- `backend/utils/mediaUtils.js` - Nettoyage exports redondants
+
 ---
 
-## ❌ **Problèmes Résolus**
+## ❌ **Problèmes Résolus Session 1**
 1. ✅ Boucles de mise à jour récursives dans Vue
 2. ✅ Double initialisation de Pinia
 3. ✅ Erreurs de signature `saveMediaFile`
@@ -108,28 +210,42 @@ const media = mediaStore.getMedia(id); // Avec tracking usage
 5. ✅ Support des références UUID dans les workflows
 6. ✅ Gestion des URLs HTTP dans le redimensionnement
 
+## ❌ **Problèmes Résolus Session 2**
+1. ✅ URLs Replicate externes dans collections (maintenant téléchargées localement)
+2. ✅ MediaId null dans collections (extraction UUID automatique backend)
+3. ✅ Architecture duale mediaStore/collections (unifié sur collections)
+4. ✅ Erreurs exports redondants dans mediaUtils.js  
+5. ✅ Frontend gérant les IDs (tout côté backend maintenant)
+6. ✅ Navigation galerie peu ergonomique (boutons centrés verticalement)
+7. ✅ Média introuvable dans workflows (résolution collections + mediaStore)
+8. ✅ Syntaxe JavaScript (guillemets imbriqués corrigés)
+
 ---
 
-## 🚧 **Ce qui reste à Corriger**
+## 🚧 **État Actuel - Session 2**
 
-### 1. **Affichage des Résultats de Workflow** 🔥 PRIORITÉ
-- **Problème** : Images redimensionnées ne s'affichent pas dans le frontend
-- **Cause** : Disconnect entre format de retour backend et attentes frontend  
-- **Status** : Traitement réussi mais affichage manquant
-- **Action requise** : Debug des logs pour comprendre le format exact
+### ✅ **Système Collections Opérationnel**
+- **Gestion complète** : Créer, modifier, supprimer collections ✅
+- **Upload unifié** : Direct vers collections avec UUID automatique ✅  
+- **Auto-génération** : Images générées/éditées ajoutées automatiquement ✅
+- **Vue agrandie** : Navigation par flèches dans les deux galeries ✅
+- **Résolution médias** : WorkflowRunner trouve les images dans collections ✅
+- **Architecture propre** : Backend gère IDs, frontend gère interface ✅
 
-### 2. **Redémarrage Serveur Backend** 
-- **Problème** : Modifications non prises en compte sans redémarrage
-- **Cause** : Cache des modules ES6 
-- **Solution** : Utiliser nodemon ou redémarrer après modifications
+### 🎯 **Fonctionnalités Testées et Validées**
+1. ✅ **Upload d'images** → Collections avec mediaId correct
+2. ✅ **Génération d'images** → Auto-ajout à collection courante avec URL locale
+3. ✅ **Édition d'images** → Auto-ajout à collection courante avec URL locale  
+4. ✅ **Navigation galerie** → Vue agrandie avec flèches dans CollectionManager et SimpleMediaGallery
+5. ✅ **Sélection workflow** → Résolution des médias depuis collections
+6. ✅ **Interface collections** → Gestion CRUD complète
 
-### 3. **Tests de Workflow Complets**
-- **Besoin** : Validation end-to-end du système complet
-- **Test requis** : Galerie → Sélection → Workflow → Affichage résultat
-
-### 4. **Documentation d'Usage**
-- **Manquant** : Guide d'utilisation des nouveaux composants
-- **Requis** : Exemples d'intégration dans d'autres workflows
+### 🔧 **Optimisations Possibles (Non Critiques)**
+- **Cache frontend** : Préchargement des aperçus collections
+- **Synchronisation** : Auto-refresh quand collection modifiée
+- **Gestion d'erreurs** : Messages plus spécifiques upload/génération
+- **Performance** : Pagination pour collections avec beaucoup d'images
+- **Métadonnées** : Taille fichier, dimensions, type MIME dans collections
 
 ---
 
