@@ -1,6 +1,16 @@
 import Replicate from 'replicate';
+import fetch from 'node-fetch';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { prepareImageForVideo, prepareMultipleImagesForVideo } from '../utils/imageUtils.js';
+import { addImageToCurrentCollection } from './collectionManager.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
+
+// Calculer __dirname pour les modules ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -113,6 +123,31 @@ export async function generateVideoFromImage(params) {
   let lastImageBuffer = params.lastImage;
   if (params.lastImage && typeof params.lastImage === 'object' && params.lastImage.buffer) {
     lastImageBuffer = params.lastImage.buffer;
+  }
+
+  // Si c'est un chemin local /medias/..., le lire et le convertir en buffer
+  if (typeof params.image === 'string' && params.image.startsWith('/medias/')) {
+    console.log('📁 Lecture du fichier image local:', params.image);
+    try {
+      const fullPath = path.join(__dirname, '..', params.image);
+      imageBuffer = await fs.readFile(fullPath);
+      console.log(`✅ Fichier image lu (${Math.round(imageBuffer.length / 1024)}KB)`);
+    } catch (error) {
+      console.error('❌ Erreur lecture image:', error.message);
+      throw new Error(`Impossible de lire l'image locale: ${error.message}`);
+    }
+  }
+
+  if (typeof params.lastImage === 'string' && params.lastImage.startsWith('/medias/')) {
+    console.log('📁 Lecture du fichier lastImage local:', params.lastImage);
+    try {
+      const fullPath = path.join(__dirname, '..', params.lastImage);
+      lastImageBuffer = await fs.readFile(fullPath);
+      console.log(`✅ Fichier lastImage lu (${Math.round(lastImageBuffer.length / 1024)}KB)`);
+    } catch (error) {
+      console.error('❌ Erreur lecture lastImage:', error.message);
+      throw new Error(`Impossible de lire la lastImage locale: ${error.message}`);
+    }
   }
 
   // Si image est un Buffer, la préparer pour la vidéo
@@ -261,6 +296,55 @@ export async function generateVideoFromImage(params) {
       throw new Error('URL de vidéo non trouvée dans la sortie');
     }
 
+    console.log('🎥 Vidéo I2V URL:', videoUrl);
+
+    // Télécharger et sauvegarder la vidéo localement + ajouter à la collection courante
+    try {
+      console.log('📥 Téléchargement de la vidéo I2V générée...');
+      const response = await fetch(videoUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
+      const filename = generateUniqueFileName(extension);
+      
+      // Sauvegarder localement
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      // Extraire l'UUID depuis le nom de fichier pour le mediaId
+      const mediaId = filename.replace(/\.[^.]+$/, '');
+      
+      // Calculer la durée de la vidéo
+      const duration = input.num_frames / input.frames_per_second;
+      const finalFps = input.interpolate_output ? 30 : input.frames_per_second;
+      
+      // Ajouter la vidéo sauvegardée à la collection (URL relative)
+      await addImageToCurrentCollection({
+        url: `/medias/${filename}`, // URL relative
+        mediaId: mediaId, // UUID de la vidéo
+        type: 'video', // Marquer comme vidéo
+        description: `Vidéo I2V générée : "${input.prompt.substring(0, 100)}${input.prompt.length > 100 ? '...' : ''}"`,
+        metadata: {
+          duration: `${duration.toFixed(1)}s`,
+          numFrames: input.num_frames,
+          fps: finalFps,
+          aspectRatio: finalAspectRatio,
+          resolution: input.resolution,
+          hasLastImage: !!input.last_image
+        }
+      });
+      
+      console.log(`💾 Vidéo I2V générée sauvegardée et ajoutée à la collection: ${filename}`);
+      
+      // Mettre à jour videoUrl pour pointer vers le fichier local
+      videoUrl = `/medias/${filename}`;
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder la vidéo I2V générée à la collection courante:', error.message);
+    }
+
     // Calculer la durée de la vidéo
     const duration = input.num_frames / input.frames_per_second;
     const finalFps = input.interpolate_output ? 30 : input.frames_per_second;
@@ -364,8 +448,14 @@ export const VIDEO_IMAGE_WORKFLOWS = {
   }
 };
 
+/**
+ * Alias pour generateVideoFromImage (pour compatibilité avec GenerateVideoI2VTask)
+ */
+export const generateVideoI2V = generateVideoFromImage;
+
 export default {
   generateVideoFromImage,
+  generateVideoI2V,
   validateVideoImageParams,
   isReplicateConfigured,
   VIDEO_IMAGE_WORKFLOWS,

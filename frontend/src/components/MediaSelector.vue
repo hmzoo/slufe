@@ -265,7 +265,7 @@ watch(() => props.modelValue, (newValue) => {
   gallerySelection.value = newValue
 }, { immediate: true })
 
-// Watcher pour résoudre les médias de collection
+// Watcher pour résoudre les médias de collection ou récupérer depuis l'API
 watch(() => props.modelValue, async (newValue) => {
   if (!newValue) {
     resolvedCollectionMedia.value = null
@@ -292,9 +292,9 @@ watch(() => props.modelValue, async (newValue) => {
             resolvedCollectionMedia.value = {
               id: mediaId,
               url: img.url,
-              type: 'image',
-              filename: img.description || `image_${index}.jpg`,
-              originalName: img.description || `Image ${index + 1}`,
+              type: img.type || 'image',
+              filename: img.description || `${img.type || 'image'}_${index}.jpg`,
+              originalName: img.description || `${img.type === 'video' ? 'Vidéo' : 'Image'} ${index + 1}`,
               size: 0
             }
           }
@@ -303,6 +303,46 @@ watch(() => props.modelValue, async (newValue) => {
     } catch (error) {
       console.error('Erreur résolution média collection:', error)
       resolvedCollectionMedia.value = null
+    }
+  }
+  // Si c'est un UUID, vérifier s'il est dans le store, sinon le récupérer de l'API
+  else if (mediaId && mediaId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    // Vérifier si déjà dans le store
+    const existingMedia = mediaStore.getMedia(mediaId)
+    if (!existingMedia) {
+      // Récupérer depuis l'API
+      try {
+        const response = await api.get(`/upload/media/${mediaId}`)
+        if (response.data.success && response.data.media) {
+          const media = response.data.media
+          // Ajouter au store pour usage futur
+          mediaStore.medias.set(mediaId, {
+            id: media.id,
+            url: media.url,
+            type: media.type,
+            filename: media.filename,
+            originalName: media.originalName || media.filename,
+            mimetype: media.mimetype,
+            size: media.size,
+            createdAt: media.createdAt,
+            usageCount: 0
+          })
+          
+          resolvedCollectionMedia.value = {
+            id: media.id,
+            url: media.url,
+            type: media.type,
+            filename: media.filename,
+            originalName: media.originalName || media.filename,
+            size: media.size
+          }
+        }
+      } catch (error) {
+        console.error('Erreur récupération média:', error)
+        resolvedCollectionMedia.value = null
+      }
+    } else {
+      resolvedCollectionMedia.value = null // Le média est dans le store
     }
   } else {
     resolvedCollectionMedia.value = null

@@ -59,12 +59,33 @@
       >
         <!-- Preview du média -->
         <div class="media-preview">
+          <!-- Image -->
           <img 
-            v-if="media.type === 'image'" 
+            v-if="media.type === 'image' || !media.type" 
             :src="media.url" 
-            :alt="media.originalName"
+            :alt="media.originalName || media.description"
             loading="lazy"
           />
+          
+          <!-- Vidéo -->
+          <div v-else-if="media.type === 'video'" class="video-preview">
+            <video 
+              :src="media.url" 
+              style="width: 100%; height: 100%; object-fit: cover;"
+              muted
+              loop
+              @mouseenter="$event.target.play()"
+              @mouseleave="$event.target.pause(); $event.target.currentTime = 0"
+            />
+            <div class="video-badge">
+              <q-chip dense color="red" text-color="white" size="sm">
+                <q-icon name="videocam" size="xs" class="q-mr-xs" />
+                Vidéo
+              </q-chip>
+            </div>
+          </div>
+          
+          <!-- Autre type de média -->
           <div v-else class="media-placeholder">
             <q-icon :name="getMediaIcon(media.type)" size="lg" />
           </div>
@@ -72,7 +93,7 @@
           <!-- Overlay avec actions -->
           <div class="media-overlay">
             <q-btn 
-              v-if="media.type === 'image'"
+              v-if="media.type === 'image' || media.type === 'video' || !media.type"
               icon="zoom_in"
               round
               size="sm"
@@ -99,8 +120,11 @@
 
         <!-- Nom du média -->
         <div class="media-name q-pa-xs text-center">
-          <div class="text-caption">{{ truncateName(media.originalName || media.filename) }}</div>
-          <div class="text-caption text-grey-6">{{ formatFileSize(media.size) }}</div>
+          <div class="text-caption">{{ truncateName(media.description || media.originalName || media.filename) }}</div>
+          <div class="text-caption text-grey-6">
+            <span v-if="media.metadata?.duration">{{ media.metadata.duration }}</span>
+            <span v-else-if="media.size">{{ formatFileSize(media.size) }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -169,15 +193,22 @@
           <div class="row items-center no-wrap">
             <div class="col">
               <div class="text-h6">
-                {{ currentViewedImage?.originalName || currentViewedImage?.filename }}
+                <q-icon v-if="currentViewedImage?.type === 'video'" name="videocam" class="q-mr-xs" />
+                {{ currentViewedImage?.description || currentViewedImage?.originalName || currentViewedImage?.filename || (currentViewedImage?.type === 'video' ? 'Vidéo sans nom' : 'Image sans nom') }}
               </div>
               <div class="text-caption text-grey-4">
-                Image {{ currentImageIndex + 1 }} sur {{ displayedMedias.length }}
-                <span v-if="currentViewedImage?.size">
+                {{ currentViewedImage?.type === 'video' ? 'Vidéo' : 'Image' }} {{ currentImageIndex + 1 }} sur {{ displayedMedias.length }}
+                <span v-if="currentViewedImage?.metadata?.duration">
+                  • {{ currentViewedImage.metadata.duration }}
+                </span>
+                <span v-else-if="currentViewedImage?.size">
                   • {{ formatFileSize(currentViewedImage.size) }}
                 </span>
                 <span v-if="currentViewedImage?.createdAt">
                   • {{ formatDate(currentViewedImage.createdAt) }}
+                </span>
+                <span v-if="currentViewedImage?.metadata?.fps">
+                  • {{ currentViewedImage.metadata.fps }} fps
                 </span>
               </div>
             </div>
@@ -207,12 +238,24 @@
           </div>
         </q-card-section>
 
-        <!-- Image principale -->
+        <!-- Média principal (Image ou Vidéo) -->
         <q-card-section class="full-height flex flex-center q-pa-none relative-position">
-          <img 
-            v-if="currentViewedImage"
+          <!-- Vidéo -->
+          <video 
+            v-if="currentViewedImage && currentViewedImage.type === 'video'"
             :src="currentViewedImage.url"
-            :alt="currentViewedImage.originalName"
+            class="full-width full-height"
+            style="object-fit: contain; max-height: 100vh; max-width: 100vw;"
+            controls
+            autoplay
+            loop
+          />
+          
+          <!-- Image -->
+          <img 
+            v-else-if="currentViewedImage"
+            :src="currentViewedImage.url"
+            :alt="currentViewedImage.description || currentViewedImage.originalName"
             class="full-width full-height"
             style="object-fit: contain; max-height: 100vh; max-width: 100vw;"
             @click="closeImageViewer"
@@ -267,9 +310,23 @@
               :class="{ 'active': index === currentImageIndex }"
               @click="goToImage(index)"
             >
+              <!-- Miniature vidéo -->
+              <div v-if="media.type === 'video'" class="thumbnail-image" style="position: relative;">
+                <video 
+                  :src="media.url"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                  muted
+                />
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                  <q-icon name="play_circle_outline" size="sm" color="white" />
+                </div>
+              </div>
+              
+              <!-- Miniature image -->
               <img 
+                v-else
                 :src="media.url"
-                :alt="media.originalName"
+                :alt="media.description || media.originalName"
                 class="thumbnail-image"
               />
             </div>
@@ -414,9 +471,9 @@ async function loadCollectionImages() {
         return {
           id: imageId,
           url: img.url,
-          type: 'image',
-          originalName: img.description || `Image ${index + 1}`,
-          filename: imageId.includes('.') ? imageId : `${imageId}.jpg`,
+          type: img.type || 'image',  // Utiliser le vrai type (image/video)
+          originalName: img.description || `${img.type === 'video' ? 'Vidéo' : 'Image'} ${index + 1}`,
+          filename: imageId.includes('.') ? imageId : `${imageId}.${img.type === 'video' ? 'mp4' : 'jpg'}`,
           size: 0,
           createdAt: img.addedAt,
           fromCollection: true
@@ -603,6 +660,20 @@ onMounted(async () => {
   justify-content: center;
   background: linear-gradient(135deg, #f5f5f5, #eeeeee);
   color: #999;
+}
+
+.video-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.video-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
 }
 
 .selection-badge {

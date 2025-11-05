@@ -6,13 +6,14 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { getMediaFilePath, getMediaFileUrl, generateUniqueFileName } from '../utils/fileUtils.js';
+import { addImageToCurrentCollection } from './collectionManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configuration FFmpeg
 ffmpeg.setFfmpegPath(ffmpegStatic);
-ffmpeg.setFfprobePath(ffprobeStatic);
+ffmpeg.setFfprobePath(ffprobeStatic.path || ffprobeStatic);
 
 /**
  * Utilitaire pour créer le dossier temp s'il n'existe pas
@@ -60,10 +61,30 @@ export async function extractVideoFrame({
 
     // Gérer le cas où video est un Buffer (upload direct)
     let videoPath = video;
+    let tempVideoPath = null;
+    
     if (Buffer.isBuffer(video)) {
-      const tempVideoPath = path.join(tempDir, `temp_video_${uuidv4()}.mp4`);
+      // Buffer → fichier temporaire
+      tempVideoPath = path.join(tempDir, `temp_video_${uuidv4()}.mp4`);
       await fs.writeFile(tempVideoPath, video);
       videoPath = tempVideoPath;
+    } else if (typeof video === 'object' && video.url) {
+      // Objet avec url → extraire et convertir en chemin absolu si nécessaire
+      const url = video.url;
+      if (url.startsWith('/medias/')) {
+        videoPath = path.join(__dirname, '..', url);
+        global.logWorkflow('📁 Lecture vidéo locale depuis objet', { url, videoPath });
+      } else {
+        videoPath = url;
+      }
+    } else if (typeof video === 'object' && video.path) {
+      // Objet avec path → utiliser le path
+      videoPath = video.path;
+      global.logWorkflow('📁 Utilisation path direct', { videoPath });
+    } else if (typeof video === 'string' && video.startsWith('/medias/')) {
+      // Chemin local /medias/... → chemin absolu
+      videoPath = path.join(__dirname, '..', video);
+      global.logWorkflow('📁 Lecture vidéo locale', { videoPath });
     }
 
     // Obtenir les métadonnées pour calculer les timestamps
@@ -109,9 +130,9 @@ export async function extractVideoFrame({
         ])
         .on('end', async () => {
           // Nettoyer le fichier vidéo temporaire si c'était un Buffer
-          if (Buffer.isBuffer(video)) {
+          if (tempVideoPath) {
             try {
-              await fs.unlink(videoPath);
+              await fs.unlink(tempVideoPath);
             } catch (error) {
               console.warn('Impossible de supprimer le fichier vidéo temporaire:', error.message);
             }
@@ -123,6 +144,35 @@ export async function extractVideoFrame({
             seekTime: `${seekTime.toFixed(2)}s`,
             videoDuration: `${duration.toFixed(2)}s`
           });
+
+          // Ajouter la frame extraite à la collection courante
+          try {
+            // Extraire le mediaId depuis le filename (format: UUID.ext)
+            const mediaId = outputFilename.split('.')[0];
+            
+            await addImageToCurrentCollection({
+              url: `/medias/${outputFilename}`, // URL relative
+              mediaId: mediaId, // UUID de l'image
+              type: 'image', // Type image
+              description: `Frame extraite (${frameType}) à ${formatTime(seekTime)}`,
+              metadata: {
+                extractedFrom: 'video',
+                frameType: frameType,
+                timestamp: seekTime.toFixed(2) + 's',
+                videoDuration: duration.toFixed(2) + 's',
+                format: outputFormat,
+                quality: quality
+              }
+            });
+            
+            global.logWorkflow('💾 Frame ajoutée à la collection courante', {
+              filename: outputFilename,
+              frameType,
+              timestamp: formatTime(seekTime)
+            });
+          } catch (collectionError) {
+            console.warn('⚠️ Impossible d\'ajouter la frame à la collection:', collectionError.message);
+          }
 
           resolve({
             success: true,
@@ -220,7 +270,8 @@ export async function concatenateVideos({
         duration: metadata.duration,
         width: metadata.video?.width,
         height: metadata.video?.height,
-        fps: metadata.video?.fps
+        fps: metadata.video?.fps,
+        hasAudio: !!metadata.audio  // Vérifier si la vidéo a de l'audio
       });
     }
 
@@ -229,7 +280,8 @@ export async function concatenateVideos({
         index: i,
         duration: `${info.duration.toFixed(2)}s`,
         resolution: `${info.width}x${info.height}`,
-        fps: info.fps
+        fps: info.fps,
+        hasAudio: info.hasAudio
       }))
     });
 
@@ -262,32 +314,66 @@ export async function concatenateVideos({
         command = command.input(info.path);
       });
 
+      // Vérifier si au moins une vidéo a de l'audio
+      const hasAnyAudio = videoInfos.some(info => info.hasAudio);
+
       // Créer le filtre complexe pour normaliser et concaténer
       const videoFilters = videoInfos.map((_, i) => 
         `[${i}:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps || 30}[v${i}]`
       );
       
-      const audioFilters = videoInfos.map((_, i) => 
-        `[${i}:a]aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`
-      );
+      let filterComplex;
+      let outputOptions;
 
-      const concatFilter = `${videoInfos.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${videoInfos.length}:v=1:a=1[outv][outa]`;
+      if (hasAnyAudio) {
+        // Si au moins une vidéo a de l'audio, traiter l'audio
+        const audioFilters = videoInfos.map((info, i) => {
+          if (info.hasAudio) {
+            return `[${i}:a]aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`;
+          } else {
+            // Créer une piste audio silencieuse pour les vidéos sans audio
+            return `anullsrc=channel_layout=stereo:sample_rate=48000[a${i}]`;
+          }
+        });
 
-      command
-        .complexFilter([
+        const concatFilter = `${videoInfos.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${videoInfos.length}:v=1:a=1[outv][outa]`;
+
+        filterComplex = [
           ...videoFilters,
           ...audioFilters,
           concatFilter
-        ])
-        .outputOptions([
+        ];
+
+        outputOptions = [
           '-map [outv]',
           '-map [outa]',
           '-c:v libx264',
           '-c:a aac',
           `-crf ${crf}`,
           `-preset ${preset}`,
-          '-movflags +faststart' // Pour streaming
-        ])
+          '-movflags +faststart'
+        ];
+      } else {
+        // Aucune vidéo n'a d'audio - concaténation vidéo uniquement
+        const concatFilter = `${videoInfos.map((_, i) => `[v${i}]`).join('')}concat=n=${videoInfos.length}:v=1:a=0[outv]`;
+
+        filterComplex = [
+          ...videoFilters,
+          concatFilter
+        ];
+
+        outputOptions = [
+          '-map [outv]',
+          '-c:v libx264',
+          `-crf ${crf}`,
+          `-preset ${preset}`,
+          '-movflags +faststart'
+        ];
+      }
+
+      command
+        .complexFilter(filterComplex)
+        .outputOptions(outputOptions)
         .output(outputPath)
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);

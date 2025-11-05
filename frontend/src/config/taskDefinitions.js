@@ -568,23 +568,28 @@ export const TASK_DEFINITIONS = {
     icon: 'video_library',
     color: 'deep-purple',
     category: 'video',
-    description: 'Assemble plusieurs vidéos en une seule',
+    description: 'Assemble deux vidéos en une seule',
     model: 'FFmpeg',
     inputs: {
-      videos: {
-        type: 'videos',
-        label: 'Vidéos à concaténer',
+      video1: {
+        type: 'video',
+        label: 'Première vidéo',
         required: true,
         acceptsVariable: true,
-        multiple: true,
-        min: 2,
-        max: 20,
-        hint: 'Minimum 2 vidéos, maximum 20'
+        hint: 'Sélectionnez la première vidéo à concaténer'
+      },
+      video2: {
+        type: 'video',
+        label: 'Deuxième vidéo',
+        required: true,
+        acceptsVariable: true,
+        hint: 'Sélectionnez la deuxième vidéo à concaténer'
       },
       outputFormat: {
         type: 'select',
         label: 'Format de sortie',
         required: false,
+        hidden: true, // Masqué pour interface simple
         options: [
           { label: 'MP4 (recommandé)', value: 'mp4' },
           { label: 'MOV', value: 'mov' },
@@ -599,6 +604,7 @@ export const TASK_DEFINITIONS = {
         type: 'select',
         label: 'Résolution',
         required: false,
+        hidden: true, // Masqué pour interface simple
         options: [
           { label: 'Automatique (résolution commune)', value: null },
           { label: 'HD 720p (1280x720)', value: '1280x720' },
@@ -615,6 +621,7 @@ export const TASK_DEFINITIONS = {
         type: 'select',
         label: 'Fréquence d\'images',
         required: false,
+        hidden: true, // Masqué pour interface simple
         options: [
           { label: 'Automatique', value: null },
           { label: '24 fps (cinéma)', value: 24 },
@@ -629,6 +636,7 @@ export const TASK_DEFINITIONS = {
         type: 'select',
         label: 'Qualité',
         required: false,
+        hidden: true, // Masqué pour interface simple
         options: [
           { label: 'Basse (rapide, petit fichier)', value: 'low' },
           { label: 'Moyenne (équilibré)', value: 'medium' },

@@ -189,7 +189,13 @@
 
                       <!-- Formulaire de configuration de la tâche -->
                       <div class="task-config q-mt-sm q-pa-sm bg-grey-2 rounded-borders">
-                        <div v-for="(inputDef, inputKey) in getTaskDefinition(task.type).inputs" :key="inputKey" class="q-mb-sm">
+                        <div 
+                          v-for="(inputDef, inputKey) in getTaskDefinition(task.type).inputs" 
+                          :key="inputKey" 
+                          v-show="!inputDef.hidden"
+                          class="q-mb-sm"
+                        >
+                          
                           <!-- Input texte -->
                           <q-input
                             v-if="inputDef.type === 'text'"
@@ -258,6 +264,60 @@
                               color="primary"
                               class="q-mt-sm"
                             />
+                          </div>
+
+                          <!-- Input video -->
+                          <div v-else-if="inputDef.type === 'video'" class="video-input-builder">
+                            <div class="text-caption text-weight-medium q-mb-xs">{{ inputDef.label }}</div>
+                            
+                            <!-- Choix: Variable ou Galerie -->
+                            <q-btn-toggle
+                              :model-value="task[`videoInputMode_${inputKey}`] || 'variable'"
+                              @update:model-value="(val) => { task[`videoInputMode_${inputKey}`] = val; console.log('Video input mode changed:', val, 'for input:', inputKey, 'task:', task.id); }"
+                              :options="[
+                                { label: 'Variable', value: 'variable', icon: 'code' },
+                                { label: 'Galerie', value: 'gallery', icon: 'video_library' }
+                              ]"
+                              dense
+                              unelevated
+                              size="sm"
+                              class="q-mb-sm"
+                            />
+
+                            <!-- Mode Variable -->
+                            <div v-if="!task[`videoInputMode_${inputKey}`] || task[`videoInputMode_${inputKey}`] === 'variable'">
+                              <q-btn
+                                dense
+                                flat
+                                icon="code"
+                                label="Sélectionner une variable"
+                                color="primary"
+                                @click="showVariableSelector(task.id, inputKey, idx)"
+                                class="q-mb-sm full-width"
+                              />
+                              <q-input
+                                :model-value="task.input[inputKey]"
+                                @update:model-value="(val) => updateTaskInput(task.id, inputKey, val)"
+                                :label="inputDef.label"
+                                dense
+                                filled
+                                bg-color="white"
+                                :hint="inputDef.hint"
+                              />
+                            </div>
+
+                            <!-- Mode Galerie -->
+                            <div v-else-if="task[`videoInputMode_${inputKey}`] === 'gallery'">
+                              <MediaSelector
+                                v-model="task[`mediaIds_${inputKey}`]"
+                                :label="inputDef.label"
+                                :placeholder="'Sélectionner une vidéo depuis la galerie...'"
+                                :multiple="false"
+                                :accept="['video']"
+                                @selected="(medias) => onTaskMediaSelected(task, inputKey, medias)"
+                                @uploaded="(medias) => onTaskMediaUploaded(task, inputKey, medias)"
+                              />
+                            </div>
                           </div>
 
                           <!-- Input images -->
@@ -493,6 +553,7 @@
                               </q-item>
                             </q-list>
                           </div>
+                          
                         </div>
 
                         <!-- Section spéciale pour les tâches génériques input_text -->
@@ -820,6 +881,57 @@
               />
             </div>
             
+            <!-- Frame extraite de vidéo -->
+            <div v-else-if="taskResult.type === 'video_extract_frame' && taskResult.outputs?.image_url" class="q-mb-sm">
+              <div class="text-caption text-grey-6 q-mb-xs">Frame extraite :</div>
+              
+              <!-- Affichage des infos de la frame -->
+              <div v-if="taskResult.outputs.frame_info" class="q-mb-xs">
+                <q-chip size="sm" color="primary" text-color="white">
+                  Type: {{ taskResult.outputs.frame_info.type }}
+                </q-chip>
+                <q-chip 
+                  size="sm" 
+                  color="grey-6" 
+                  text-color="white"
+                  class="q-ml-xs"
+                >
+                  Timestamp: {{ taskResult.outputs.frame_info.timeCode || taskResult.outputs.frame_info.timestamp }}
+                </q-chip>
+                <q-chip 
+                  v-if="taskResult.outputs.frame_info.format"
+                  size="sm" 
+                  color="grey-6" 
+                  text-color="white"
+                  class="q-ml-xs"
+                >
+                  Format: {{ taskResult.outputs.frame_info.format }}
+                </q-chip>
+              </div>
+              
+              <q-img
+                :src="taskResult.outputs.image_url"
+                style="max-width: 100%; max-height: 400px"
+                class="rounded-borders"
+                fit="contain"
+              >
+                <template v-slot:error>
+                  <div class="absolute-full flex flex-center bg-negative text-white">
+                    Erreur de chargement
+                  </div>
+                </template>
+              </q-img>
+              <q-btn
+                flat
+                dense
+                color="primary"
+                icon="download"
+                label="Télécharger"
+                @click="downloadImage(taskResult.outputs.image_url)"
+                class="q-mt-xs"
+              />
+            </div>
+            
             <!-- Images générées -->
             <div v-else-if="taskResult.outputs?.image" class="q-mb-sm">
               <div class="text-caption text-grey-6 q-mb-xs">Image générée :</div>
@@ -948,10 +1060,35 @@
             </div>
 
             <!-- Vidéo -->
-            <div v-if="taskResult.outputs?.video" class="q-mb-sm">
+            <div v-if="taskResult.outputs?.video || taskResult.outputs?.video_url" class="q-mb-sm">
               <div class="text-caption text-grey-6 q-mb-xs">Vidéo générée :</div>
+              
+              <!-- Affichage des infos de concaténation si disponibles -->
+              <div v-if="taskResult.outputs.concat_info" class="q-mb-xs">
+                <q-chip size="sm" color="deep-purple" text-color="white">
+                  {{ taskResult.outputs.concat_info.input_count }} vidéos
+                </q-chip>
+                <q-chip 
+                  size="sm" 
+                  color="grey-6" 
+                  text-color="white"
+                  class="q-ml-xs"
+                >
+                  Durée: {{ taskResult.outputs.concat_info.total_duration.toFixed(1) }}s
+                </q-chip>
+                <q-chip 
+                  v-if="taskResult.outputs.concat_info.resolution"
+                  size="sm" 
+                  color="grey-6" 
+                  text-color="white"
+                  class="q-ml-xs"
+                >
+                  {{ taskResult.outputs.concat_info.resolution }}
+                </q-chip>
+              </div>
+              
               <video controls style="max-width: 100%; max-height: 400px" class="rounded-borders">
-                <source :src="taskResult.outputs.video" type="video/mp4">
+                <source :src="taskResult.outputs.video || taskResult.outputs.video_url" type="video/mp4">
               </video>
               <q-btn
                 flat
@@ -959,7 +1096,7 @@
                 color="primary"
                 icon="download"
                 label="Télécharger"
-                @click="downloadVideo(taskResult.outputs.video)"
+                @click="downloadVideo(taskResult.outputs.video || taskResult.outputs.video_url)"
                 class="q-mt-xs"
               />
             </div>
@@ -1750,8 +1887,8 @@ function onTaskMediaSelected(task, inputKey, medias) {
   const taskDef = getTaskDefinition(task.type)
   const inputDef = taskDef.inputs[inputKey]
   
-  if (inputDef.type === 'image') {
-    // Pour un input de type 'image' (singulier)
+  if (inputDef.type === 'image' || inputDef.type === 'video') {
+    // Pour un input de type 'image' ou 'video' (singulier)
     const mediaId = medias.length > 0 ? medias[0].id : null
     task[`mediaIds_${inputKey}`] = mediaId
     task.input[inputKey] = mediaId

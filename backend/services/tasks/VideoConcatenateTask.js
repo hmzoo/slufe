@@ -1,4 +1,5 @@
 import { concatenateVideos } from '../videoProcessor.js';
+import path from 'path';
 
 /**
  * Service de tâche pour la concaténation de vidéos
@@ -13,7 +14,8 @@ export class VideoConcatenateTask {
   /**
    * Exécute la tâche de concaténation de vidéos
    * @param {Object} inputs - Entrées de la tâche
-   * @param {Array<string|Buffer>} inputs.videos - Liste des vidéos à concaténer
+   * @param {string|Buffer|Object} inputs.video1 - Première vidéo
+   * @param {string|Buffer|Object} inputs.video2 - Deuxième vidéo
    * @param {string} [inputs.outputFormat='mp4'] - Format de sortie
    * @param {string} [inputs.resolution=null] - Résolution forcée (ex: '1920x1080')
    * @param {number} [inputs.fps=null] - FPS forcé
@@ -22,8 +24,13 @@ export class VideoConcatenateTask {
    */
   async execute(inputs) {
     try {
+      // Normaliser les vidéos (extraire URL/path depuis objets)
+      const normalizedVideo1 = this.normalizeVideoInput(inputs.video1);
+      const normalizedVideo2 = this.normalizeVideoInput(inputs.video2);
+      
       global.logWorkflow(`🎬 Concaténation de vidéos`, {
-        videoCount: inputs.videos?.length || 0,
+        hasVideo1: !!normalizedVideo1,
+        hasVideo2: !!normalizedVideo2,
         outputFormat: inputs.outputFormat || 'mp4',
         resolution: inputs.resolution || 'auto',
         fps: inputs.fps || 'auto',
@@ -38,7 +45,7 @@ export class VideoConcatenateTask {
 
       // Préparation des paramètres avec valeurs par défaut
       const params = {
-        videos: inputs.videos,
+        videos: [normalizedVideo1, normalizedVideo2], // Convertir en array pour concatenateVideos
         outputFormat: inputs.outputFormat || 'mp4',
         resolution: inputs.resolution || null,
         fps: inputs.fps || null,
@@ -69,7 +76,8 @@ export class VideoConcatenateTask {
       global.logWorkflow(`❌ Erreur lors de la concaténation`, {
         error: error.message,
         inputs: {
-          videoCount: inputs.videos?.length || 0,
+          hasVideo1: !!inputs.video1,
+          hasVideo2: !!inputs.video2,
           outputFormat: inputs.outputFormat,
           resolution: inputs.resolution,
           quality: inputs.quality
@@ -89,12 +97,12 @@ export class VideoConcatenateTask {
     const errors = [];
 
     // Validation des vidéos
-    if (!inputs.videos || !Array.isArray(inputs.videos)) {
-      errors.push('Liste de vidéos requise (Array)');
-    } else if (inputs.videos.length < 2) {
-      errors.push('Au moins 2 vidéos sont requises pour la concaténation');
-    } else if (inputs.videos.length > 20) {
-      errors.push('Maximum 20 vidéos peuvent être concaténées à la fois');
+    if (!inputs.video1) {
+      errors.push('Première vidéo requise');
+    }
+    
+    if (!inputs.video2) {
+      errors.push('Deuxième vidéo requise');
     }
 
     // Validation outputFormat
@@ -139,6 +147,50 @@ export class VideoConcatenateTask {
   }
 
   /**
+   * Normalise l'input vidéo pour extraire l'URL/chemin depuis différents formats
+   * et convertir les URLs relatives en chemins absolus
+   * @param {string|Buffer|Object} video - Vidéo à normaliser
+   * @returns {string|Buffer} URL, chemin absolu ou buffer normalisé
+   */
+  normalizeVideoInput(video) {
+    // Si c'est un Buffer, retourner tel quel
+    if (Buffer.isBuffer(video)) {
+      return video;
+    }
+
+    let videoPath;
+
+    // Si c'est déjà une string
+    if (typeof video === 'string') {
+      videoPath = video;
+    }
+    // Si c'est un objet avec url
+    else if (video && typeof video === 'object' && video.url) {
+      videoPath = video.url;
+    }
+    // Si c'est un objet avec path
+    else if (video && typeof video === 'object' && video.path) {
+      videoPath = video.path;
+    }
+    // Si c'est un objet avec filename
+    else if (video && typeof video === 'object' && video.filename) {
+      videoPath = video.filename;
+    }
+    // Sinon retourner tel quel
+    else {
+      return video;
+    }
+
+    // Convertir les URLs relatives (/medias/...) en chemins absolus
+    if (videoPath.startsWith('/medias/')) {
+      const filename = videoPath.replace('/medias/', '');
+      videoPath = path.join(process.cwd(), 'medias', filename);
+    }
+
+    return videoPath;
+  }
+
+  /**
    * Retourne les paramètres par défaut pour cette tâche
    * @returns {Object} Paramètres par défaut
    */
@@ -157,13 +209,15 @@ export class VideoConcatenateTask {
    */
   getInputSchema() {
     return {
-      videos: {
-        type: 'videos',
+      video1: {
+        type: 'video',
         required: true,
-        multiple: true,
-        min: 2,
-        max: 20,
-        description: 'Vidéos à concaténer (minimum 2, maximum 20)'
+        description: 'Première vidéo à concaténer'
+      },
+      video2: {
+        type: 'video',
+        required: true,
+        description: 'Deuxième vidéo à concaténer'
       },
       outputFormat: {
         type: 'select',

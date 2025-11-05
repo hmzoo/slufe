@@ -205,29 +205,83 @@
                     />
                   </div>
 
-                  <!-- Grille des images -->
+                  <!-- Grille des médias (images et vidéos) -->
                   <div v-if="selectedCollection.images.length" class="row q-col-gutter-md">
                     <div 
-                      v-for="(image, index) in selectedCollection.images" 
+                      v-for="(media, index) in selectedCollection.images" 
                       :key="index"
                       class="col-12 col-sm-6 col-md-4 col-lg-3"
                     >
-                      <q-card class="image-card cursor-pointer" @click="viewImageDetails(image)">
+                      <q-card class="image-card cursor-pointer" @click="viewImageDetails(media)">
                         <div class="image-container">
+                          <!-- Vidéo -->
+                          <div v-if="media.type === 'video'" class="video-container" style="height: 200px; position: relative; background: #000;">
+                            <video
+                              :src="media.url"
+                              style="width: 100%; height: 100%; object-fit: cover;"
+                              muted
+                              loop
+                              @mouseenter="$event.target.play()"
+                              @mouseleave="$event.target.pause(); $event.target.currentTime = 0"
+                            />
+                            <div class="absolute-top-left q-pa-xs">
+                              <q-chip dense color="red" text-color="white" size="sm">
+                                <q-icon name="videocam" size="xs" class="q-mr-xs" />
+                                Vidéo
+                              </q-chip>
+                            </div>
+                            <div class="absolute-bottom bg-black-50 text-white q-pa-xs">
+                              <div v-if="media.description" class="text-caption text-truncate">
+                                {{ media.description }}
+                              </div>
+                              <div class="text-caption text-grey-4">
+                                <span v-if="media.metadata?.duration">{{ media.metadata.duration }} • </span>
+                                <span v-if="media.metadata?.fps">{{ media.metadata.fps }} fps • </span>
+                                {{ formatDate(media.addedAt) }}
+                              </div>
+                            </div>
+                            
+                            <!-- Actions sur la vidéo -->
+                            <div class="absolute-top-right q-pa-xs">
+                              <q-btn
+                                size="sm"
+                                round
+                                flat
+                                icon="edit"
+                                color="white"
+                                @click.stop="editImageDescription(media)"
+                              >
+                                <q-tooltip>Modifier la description</q-tooltip>
+                              </q-btn>
+                              <q-btn
+                                size="sm"
+                                round
+                                flat
+                                icon="delete"
+                                color="white"
+                                @click.stop="confirmRemoveImage(media)"
+                              >
+                                <q-tooltip>Supprimer de la collection</q-tooltip>
+                              </q-btn>
+                            </div>
+                          </div>
+                          
+                          <!-- Image -->
                           <q-img
-                            :src="image.url"
-                            :alt="image.description || 'Image'"
+                            v-else
+                            :src="media.url"
+                            :alt="media.description || 'Image'"
                             spinner-color="primary"
                             class="rounded-borders"
                             style="height: 200px"
                             fit="cover"
                           >
                             <div class="absolute-bottom bg-black-50 text-white q-pa-xs">
-                              <div v-if="image.description" class="text-caption text-truncate">
-                                {{ image.description }}
+                              <div v-if="media.description" class="text-caption text-truncate">
+                                {{ media.description }}
                               </div>
                               <div class="text-caption text-grey-4">
-                                {{ formatDate(image.addedAt) }}
+                                {{ formatDate(media.addedAt) }}
                               </div>
                             </div>
                             
@@ -239,7 +293,7 @@
                                 flat
                                 icon="edit"
                                 color="white"
-                                @click.stop="editImageDescription(image)"
+                                @click.stop="editImageDescription(media)"
                               >
                                 <q-tooltip>Modifier la description</q-tooltip>
                               </q-btn>
@@ -249,7 +303,7 @@
                                 flat
                                 icon="delete"
                                 color="white"
-                                @click.stop="confirmRemoveImage(image)"
+                                @click.stop="confirmRemoveImage(media)"
                               >
                                 <q-tooltip>Supprimer de la collection</q-tooltip>
                               </q-btn>
@@ -261,9 +315,9 @@
                   </div>
                   
                   <div v-else class="text-center text-grey-6 q-py-xl">
-                    <q-icon name="image" size="4rem" class="q-mb-md" />
-                    <div>Aucune image dans cette collection</div>
-                    <div class="text-caption">Ajoutez des images pour commencer</div>
+                    <q-icon name="perm_media" size="4rem" class="q-mb-md" />
+                    <div>Aucun média dans cette collection</div>
+                    <div class="text-caption">Ajoutez des images ou vidéos pour commencer</div>
                   </div>
                 </q-card-section>
               </q-card>
@@ -380,12 +434,22 @@
         <div class="row items-center no-wrap">
           <div class="col">
             <div class="text-h6">
-              {{ currentViewedImage?.description || 'Image sans nom' }}
+              <q-icon v-if="currentViewedImage?.type === 'video'" name="videocam" class="q-mr-xs" />
+              {{ currentViewedImage?.description || (currentViewedImage?.type === 'video' ? 'Vidéo sans nom' : 'Image sans nom') }}
             </div>
             <div class="text-caption text-grey-4">
-              Image {{ currentImageIndex + 1 }} sur {{ selectedCollection?.images?.length || 0 }}
+              {{ currentViewedImage?.type === 'video' ? 'Vidéo' : 'Image' }} {{ currentImageIndex + 1 }} sur {{ selectedCollection?.images?.length || 0 }}
               <span v-if="currentViewedImage?.addedAt">
                 • {{ formatDate(currentViewedImage.addedAt) }}
+              </span>
+              <span v-if="currentViewedImage?.metadata?.duration">
+                • {{ currentViewedImage.metadata.duration }}
+              </span>
+              <span v-if="currentViewedImage?.metadata?.fps">
+                • {{ currentViewedImage.metadata.fps }} fps
+              </span>
+              <span v-if="currentViewedImage?.metadata?.resolution">
+                • {{ currentViewedImage.metadata.resolution }}
               </span>
             </div>
           </div>
@@ -413,10 +477,22 @@
         </div>
       </q-card-section>
 
-      <!-- Image principale -->
+      <!-- Image ou Vidéo principale -->
       <q-card-section class="full-height flex flex-center q-pa-none relative-position">
+        <!-- Vidéo -->
+        <video
+          v-if="currentViewedImage && currentViewedImage.type === 'video'"
+          :src="currentViewedImage.url"
+          class="full-width full-height"
+          style="object-fit: contain; max-height: 100vh; max-width: 100vw;"
+          controls
+          autoplay
+          loop
+        />
+        
+        <!-- Image -->
         <img 
-          v-if="currentViewedImage"
+          v-else-if="currentViewedImage"
           :src="currentViewedImage.url"
           :alt="currentViewedImage.description"
           class="full-width full-height"
@@ -467,15 +543,29 @@
       >
         <div class="row justify-center q-gutter-xs">
           <div 
-            v-for="(image, index) in selectedCollection.images"
+            v-for="(media, index) in selectedCollection.images"
             :key="index"
             class="thumbnail-item"
             :class="{ 'active': index === currentImageIndex }"
             @click="goToImage(index)"
           >
+            <!-- Miniature vidéo -->
+            <div v-if="media.type === 'video'" class="thumbnail-image" style="position: relative;">
+              <video 
+                :src="media.url"
+                style="width: 100%; height: 100%; object-fit: cover;"
+                muted
+              />
+              <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                <q-icon name="play_circle_outline" size="sm" color="white" />
+              </div>
+            </div>
+            
+            <!-- Miniature image -->
             <img 
-              :src="image.url"
-              :alt="image.description"
+              v-else
+              :src="media.url"
+              :alt="media.description"
               class="thumbnail-image"
             />
           </div>

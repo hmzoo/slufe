@@ -66,7 +66,7 @@ async function resolveMediaIds(workflow, inputs) {
             value.startsWith('collection_')
           )) {
             try {
-              let mediaInfo, mediaBuffer;
+              let mediaInfo;
               
               if (value.startsWith('collection_')) {
                 // Résolution depuis les collections
@@ -85,19 +85,20 @@ async function resolveMediaIds(workflow, inputs) {
                       const filename = img.url.split('/').pop();
                       const mediaPath = path.join(process.cwd(), 'medias', filename);
                       
-                      mediaBuffer = await fs.readFile(mediaPath);
                       mediaInfo = {
+                        id: `collection_${index}`,
                         originalName: img.description || filename,
                         filename: filename,
-                        mimetype: 'image/jpeg', // Assumé pour les collections
-                        size: mediaBuffer.length,
-                        url: img.url
+                        mimetype: img.type === 'video' ? 'video/mp4' : 'image/jpeg',
+                        type: img.type || 'image',
+                        url: img.url,
+                        path: mediaPath
                       };
                       
                       global.logWorkflow(`📚 Résolution média collection: ${value}`, {
                         index: index,
                         url: img.url,
-                        size: mediaBuffer.length
+                        type: mediaInfo.type
                       });
                     }
                   }
@@ -105,32 +106,40 @@ async function resolveMediaIds(workflow, inputs) {
               } else {
                 // Résolution UUID classique
                 mediaInfo = await uploadMediaService.getMediaInfo(value);
-                mediaBuffer = await fs.readFile(mediaInfo.path);
+                global.logWorkflow(`📎 Résolution UUID: ${value}`, {
+                  url: mediaInfo.url,
+                  type: mediaInfo.type,
+                  size: mediaInfo.size
+                });
               }
               
-              if (mediaInfo && mediaBuffer) {
+              if (mediaInfo) {
                 const fieldName = `${task.id}_${key}`;
                 
                 if (!filesByField[fieldName]) {
                   filesByField[fieldName] = [];
                 }
                 
+                // Stocker les infos du média (URL, path, etc.) - PAS de buffer
                 const fileInfo = {
-                  buffer: mediaBuffer,
+                  id: mediaInfo.id || value,
+                  url: mediaInfo.url,
+                  path: mediaInfo.path,
                   originalName: mediaInfo.originalName || mediaInfo.filename,
                   mimeType: mediaInfo.mimetype,
-                  size: mediaInfo.size
+                  size: mediaInfo.size,
+                  type: mediaInfo.type || 'image'
                 };
                 
                 filesByField[fieldName].push(fileInfo);
                 
-                // Ajouter au mapping direct UUID -> fichier
+                // Ajouter au mapping direct UUID/ID -> info média
                 mediaFiles[value] = fileInfo;
                 
-                global.logWorkflow(`📎 Résolution média ID: ${value}`, {
+                global.logWorkflow(`📎 Média résolu: ${value}`, {
                   fieldName: fieldName,
-                  mediaType: mediaInfo?.type || 'image',
-                  size: mediaInfo?.size || 0
+                  url: mediaInfo.url,
+                  type: mediaInfo.type || 'image'
                 });
               }
               
@@ -143,7 +152,8 @@ async function resolveMediaIds(workflow, inputs) {
           // Vérifier si c'est un array d'IDs de médias
           else if (Array.isArray(value) && value.length > 0 && 
                    typeof value[0] === 'string' && 
-                   value[0].match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                   (value[0].match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ||
+                    value[0].startsWith('collection_'))) {
             
             const fieldName = `${task.id}_${key}`;
             
@@ -153,26 +163,62 @@ async function resolveMediaIds(workflow, inputs) {
             
             for (const mediaId of value) {
               try {
-                const mediaInfo = await uploadMediaService.getMediaInfo(mediaId);
-                const mediaBuffer = await fs.readFile(mediaInfo.path);
+                let mediaInfo;
                 
-                const fileInfo = {
-                  buffer: mediaBuffer,
-                  originalName: mediaInfo.originalName || mediaInfo.filename,
-                  mimeType: mediaInfo.mimetype,
-                  size: mediaInfo.size
-                };
+                if (mediaId.startsWith('collection_')) {
+                  // Résolution collection
+                  const collectionManager = await import('../services/collectionManager.js');
+                  const currentCollection = await collectionManager.getCurrentCollection();
+                  
+                  if (currentCollection && currentCollection.images) {
+                    const indexMatch = mediaId.match(/collection_(\d+)/);
+                    if (indexMatch) {
+                      const index = parseInt(indexMatch[1]);
+                      const img = currentCollection.images[index];
+                      
+                      if (img && img.url) {
+                        const filename = img.url.split('/').pop();
+                        const mediaPath = path.join(process.cwd(), 'medias', filename);
+                        
+                        mediaInfo = {
+                          id: `collection_${index}`,
+                          originalName: img.description || filename,
+                          filename: filename,
+                          mimetype: img.type === 'video' ? 'video/mp4' : 'image/jpeg',
+                          type: img.type || 'image',
+                          url: img.url,
+                          path: mediaPath
+                        };
+                      }
+                    }
+                  }
+                } else {
+                  // UUID classique
+                  mediaInfo = await uploadMediaService.getMediaInfo(mediaId);
+                }
                 
-                filesByField[fieldName].push(fileInfo);
-                
-                // Ajouter au mapping direct UUID -> fichier
-                mediaFiles[mediaId] = fileInfo;
-                
-                global.logWorkflow(`📎 Résolution média ID array: ${mediaId}`, {
-                  fieldName: fieldName,
-                  mediaType: mediaInfo.type,
-                  size: mediaInfo.size
-                });
+                if (mediaInfo) {
+                  const fileInfo = {
+                    id: mediaInfo.id || mediaId,
+                    url: mediaInfo.url,
+                    path: mediaInfo.path,
+                    originalName: mediaInfo.originalName || mediaInfo.filename,
+                    mimeType: mediaInfo.mimetype,
+                    size: mediaInfo.size,
+                    type: mediaInfo.type || 'image'
+                  };
+                  
+                  filesByField[fieldName].push(fileInfo);
+                  
+                  // Ajouter au mapping direct ID -> info média
+                  mediaFiles[mediaId] = fileInfo;
+                  
+                  global.logWorkflow(`📎 Média array résolu: ${mediaId}`, {
+                    fieldName: fieldName,
+                    url: mediaInfo.url,
+                    type: mediaInfo.type || 'image'
+                  });
+                }
                 
               } catch (error) {
                 global.logWorkflow(`❌ Erreur résolution média ID array: ${mediaId}`, {

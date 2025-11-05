@@ -284,14 +284,19 @@ export class EditImageTask {
     } else if (inputs.images.length > 5) {
       errors.push('Maximum 5 images par édition');
     } else {
-      // Validation du format des images (URL, base64, ou objet avec buffer)
+      // Validation du format des images (URL, chemin local, base64, ou objet avec buffer/url)
       for (let i = 0; i < inputs.images.length; i++) {
         const image = inputs.images[i];
-        const isValidUrl = typeof image === 'string' && (image.startsWith('http') || image.startsWith('data:'));
+        const isValidUrl = typeof image === 'string' && (
+          image.startsWith('http://') || 
+          image.startsWith('https://') || 
+          image.startsWith('/medias/') ||  // ← Ajout chemin local
+          image.startsWith('data:')
+        );
         const isValidObject = image && typeof image === 'object' && (image.buffer || image.url);
         
         if (!isValidUrl && !isValidObject) {
-          errors.push(`Image ${i + 1}: format invalide (doit être une URL, data URI, ou objet avec buffer/url)`);
+          errors.push(`Image ${i + 1}: format invalide (doit être une URL, chemin local /medias/, data URI, ou objet avec buffer/url)`);
         }
       }
     }
@@ -436,57 +441,78 @@ export class EditImageTask {
       type: typeof input,
       isArray: Array.isArray(input),
       isNull: input === null,
-      value: typeof input === 'string' ? input : 'N/A',
-      objectKeys: typeof input === 'object' && input !== null ? Object.keys(input) : 'N/A'
+      value: typeof input === 'string' ? input.substring(0, 100) : 'N/A',
+      objectKeys: typeof input === 'object' && input !== null && !Array.isArray(input) ? Object.keys(input) : 'N/A'
     });
 
-    // Cas 1: String (ID de média ou URL)
+    // Cas 1: String (URL, chemin ou ID)
     if (typeof input === 'string') {
-      if (input.match(/^[0-9a-zA-Z-]+\.+$/)) {
-        // ID de média se terminant par un ou plusieurs points
-        // Ajouter l'extension .jpg à la fin
-        const mediaUrl = `http://localhost:9000/medias/${input}.jpg`;
-        images.push(mediaUrl);
-        global.logWorkflow(`🔄 ID média converti: ${input} -> ${mediaUrl}`);
-      } else if (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('data:')) {
-        // URL valide
+      // URLs et chemins valides
+      if (input.startsWith('http://') || input.startsWith('https://') || 
+          input.startsWith('/medias/') || input.startsWith('data:')) {
+        images.push(input);
+        global.logWorkflow(`✅ URL/chemin détecté: ${input.substring(0, 50)}...`);
+      }
+      // UUID - devrait être résolu par WorkflowRunner
+      else if (input.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        global.logWorkflow(`⚠️ UUID non résolu: ${input} (sera géré par le service)`);
+        images.push(input);
+      }
+      // ID de collection
+      else if (input.startsWith('collection_')) {
+        global.logWorkflow(`⚠️ Collection ID non résolu: ${input} (sera géré par le service)`);
+        images.push(input);
+      }
+      else {
+        global.logWorkflow(`⚠️ String non reconnue: ${input}`);
         images.push(input);
       }
     }
-    // Cas 2: Objet simple avec url ou buffer  
-    else if (typeof input === 'object' && input !== null && !Array.isArray(input) && (input.url || input.buffer)) {
-      global.logWorkflow(`🔍 Objet simple:`, { 
-        hasUrl: !!input.url, 
-        hasBuffer: !!input.buffer,
-        allKeys: Object.keys(input),
-        mimeType: input.mimeType,
-        size: input.size
-      });
+    // Cas 2: Objet avec url, path ou filename
+    else if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+      // Objet média avec url
       if (input.url) {
         images.push(input.url);
-      } else if (input.buffer) {
-        // Convertir buffer en data URL si nécessaire
-        images.push(input);
-      } else {
-        global.logWorkflow(`⚠️ Objet sans url ni buffer ignoré`);
+        global.logWorkflow(`✅ Objet avec URL: ${input.url}`);
+      }
+      // Objet média avec path
+      else if (input.path) {
+        // Convertir le chemin absolu en URL locale
+        const filename = input.path.split('/').pop() || input.path.split('\\').pop();
+        const url = `/medias/${filename}`;
+        images.push(url);
+        global.logWorkflow(`✅ Objet avec path converti: ${input.path} -> ${url}`);
+      }
+      // Objet média avec filename
+      else if (input.filename) {
+        const url = `/medias/${input.filename}`;
+        images.push(url);
+        global.logWorkflow(`✅ Objet avec filename converti: ${input.filename} -> ${url}`);
+      }
+      // Objet avec clés numériques (array-like)
+      else {
+        const keys = Object.keys(input).filter(key => /^\d+$/.test(key)).sort((a, b) => parseInt(a) - parseInt(b));
+        if (keys.length > 0) {
+          global.logWorkflow(`🔍 Objet avec clés numériques:`, { keys });
+          for (const key of keys) {
+            const subImages = this.normalizeImageInput(input[key]);
+            images.push(...subImages);
+          }
+        } else {
+          global.logWorkflow(`⚠️ Objet sans url/path/filename:`, { keys: Object.keys(input) });
+        }
       }
     }
-    // Cas 3: Array résolu comme objet avec clés numériques (de {{input1.images}})
-    else if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
-      const keys = Object.keys(input).filter(key => /^\d+$/.test(key)).sort((a, b) => parseInt(a) - parseInt(b));
-      global.logWorkflow(`🔍 Objet avec clés numériques:`, { keys, input });
-      for (const key of keys) {
-        const subImages = this.normalizeImageInput(input[key]);
-        images.push(...subImages);
-      }
-    }
-    // Cas 3: Array normal
+    // Cas 3: Array
     else if (Array.isArray(input)) {
-      global.logWorkflow(`🔍 Array normal:`, { length: input.length, items: input });
+      global.logWorkflow(`🔍 Array détecté:`, { length: input.length });
       for (const item of input) {
         const subImages = this.normalizeImageInput(item);
         images.push(...subImages);
       }
+    }
+    else {
+      global.logWorkflow(`⚠️ Type non géré:`, { type: typeof input });
     }
 
     return images;

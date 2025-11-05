@@ -1,9 +1,16 @@
 import Replicate from 'replicate';
 import fetch from 'node-fetch';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { EDIT_DEFAULTS, IMAGE_DEFAULTS } from '../config/defaults.js';
 import { addImageToCurrentCollection } from './collectionManager.js';
 import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
+
+// Calculer __dirname pour les modules ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Service d'édition d'images avec Qwen Image Edit Plus
@@ -55,8 +62,12 @@ export function validateEditParams(params) {
     if (typeof params.image1 !== 'string' && !Buffer.isBuffer(params.image1)) {
       errors.push('image1 doit être une URL string ou un Buffer');
     }
-    if (typeof params.image1 === 'string' && !params.image1.startsWith('http://') && !params.image1.startsWith('https://') && !params.image1.startsWith('data:')) {
-      errors.push('image1 doit être une URL valide (http/https) ou une data URI');
+    if (typeof params.image1 === 'string' && 
+        !params.image1.startsWith('http://') && 
+        !params.image1.startsWith('https://') && 
+        !params.image1.startsWith('/medias/') && 
+        !params.image1.startsWith('data:')) {
+      errors.push('image1 doit être une URL valide (http/https), un chemin local (/medias/), ou une data URI');
     }
     images.push(params.image1);
   }
@@ -66,8 +77,12 @@ export function validateEditParams(params) {
     if (typeof params.image2 !== 'string' && !Buffer.isBuffer(params.image2)) {
       errors.push('image2 doit être une URL string ou un Buffer');
     }
-    if (typeof params.image2 === 'string' && !params.image2.startsWith('http://') && !params.image2.startsWith('https://') && !params.image2.startsWith('data:')) {
-      errors.push('image2 doit être une URL valide (http/https) ou une data URI');
+    if (typeof params.image2 === 'string' && 
+        !params.image2.startsWith('http://') && 
+        !params.image2.startsWith('https://') && 
+        !params.image2.startsWith('/medias/') && 
+        !params.image2.startsWith('data:')) {
+      errors.push('image2 doit être une URL valide (http/https), un chemin local (/medias/), ou une data URI');
     }
     images.push(params.image2);
   }
@@ -77,8 +92,12 @@ export function validateEditParams(params) {
     if (typeof params.image3 !== 'string' && !Buffer.isBuffer(params.image3)) {
       errors.push('image3 doit être une URL string ou un Buffer');
     }
-    if (typeof params.image3 === 'string' && !params.image3.startsWith('http://') && !params.image3.startsWith('https://') && !params.image3.startsWith('data:')) {
-      errors.push('image3 doit être une URL valide (http/https) ou une data URI');
+    if (typeof params.image3 === 'string' && 
+        !params.image3.startsWith('http://') && 
+        !params.image3.startsWith('https://') && 
+        !params.image3.startsWith('/medias/') && 
+        !params.image3.startsWith('data:')) {
+      errors.push('image3 doit être une URL valide (http/https), un chemin local (/medias/), ou une data URI');
     }
     images.push(params.image3);
   }
@@ -207,6 +226,36 @@ export async function editImage({
         const mimeType = img.mimeType || 'image/jpeg';
         const base64 = img.buffer.toString('base64');
         return `data:${mimeType};base64,${base64}`;
+      }
+      // Si c'est un chemin local /medias/..., le lire et le convertir en data URI
+      if (typeof img === 'string' && img.startsWith('/medias/')) {
+        console.log(`📁 Lecture du fichier local ${index + 1}: ${img}`);
+        try {
+          // Construire le chemin absolu vers le fichier
+          const fullPath = path.join(__dirname, '..', img);
+          console.log(`📂 Chemin complet: ${fullPath}`);
+          
+          // Lire le fichier
+          const buffer = await fs.readFile(fullPath);
+          
+          // Déterminer le mimeType depuis l'extension
+          const ext = path.extname(img).toLowerCase();
+          const mimeTypes = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif'
+          };
+          const mimeType = mimeTypes[ext] || 'image/jpeg';
+          
+          const base64 = buffer.toString('base64');
+          console.log(`✅ Fichier ${index + 1} lu et converti (${Math.round(buffer.length / 1024)}KB)`);
+          return `data:${mimeType};base64,${base64}`;
+        } catch (error) {
+          console.error(`❌ Erreur lecture fichier ${index + 1}:`, error.message);
+          throw new Error(`Impossible de lire le fichier local: ${error.message}`);
+        }
       }
       // Si c'est une URL locale, la télécharger et la convertir en data URI
       if (typeof img === 'string' && img.startsWith('http://localhost:')) {

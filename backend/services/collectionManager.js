@@ -248,36 +248,38 @@ export async function setCurrentCollection(collectionId) {
 }
 
 /**
- * Ajoute une image à une collection
+ * Ajoute une image ou vidéo à une collection
  */
-export async function addImageToCollection(collectionId, { url, mediaId, description = '' }) {
+export async function addImageToCollection(collectionId, { url, mediaId, type = 'image', description = '', metadata = {} }) {
   try {
     const collection = await getCollectionById(collectionId);
     if (!collection) {
       throw new Error('Collection non trouvée');
     }
     
-    const imageEntry = {
+    const mediaEntry = {
       url,
       mediaId: mediaId || null, // UUID du média original
+      type: type || 'image', // 'image' ou 'video'
       description,
+      metadata: metadata || {}, // Métadonnées spécifiques (durée, fps, etc.)
       addedAt: new Date()
     };
     
-    // Vérifier si l'image n'existe pas déjà
-    const existingImage = collection.images.find(img => img.url === url);
-    if (existingImage) {
-      console.log('ℹ️ Image déjà présente dans la collection');
+    // Vérifier si le média n'existe pas déjà
+    const existingMedia = collection.images.find(img => img.url === url);
+    if (existingMedia) {
+      console.log(`ℹ️ ${type === 'video' ? 'Vidéo' : 'Image'} déjà présente dans la collection`);
       return collection;
     }
     
-    collection.images.unshift(imageEntry); // Ajouter en début de liste
+    collection.images.unshift(mediaEntry); // Ajouter en début de liste
     collection.updatedAt = new Date();
     
     const filePath = path.join(COLLECTIONS_DIR, `${collectionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(collection, null, 2));
     
-    console.log('✅ Image ajoutée à la collection:', collection.name);
+    console.log(`✅ ${type === 'video' ? 'Vidéo' : 'Image'} ajoutée à la collection:`, collection.name);
     return collection;
   } catch (error) {
     console.error('❌ Erreur ajout image à collection:', error);
@@ -286,9 +288,9 @@ export async function addImageToCollection(collectionId, { url, mediaId, descrip
 }
 
 /**
- * Ajoute une image à la collection courante
+ * Ajoute une image ou vidéo à la collection courante
  */
-export async function addImageToCurrentCollection({ url, mediaId, description = '' }) {
+export async function addImageToCurrentCollection({ url, mediaId, type = 'image', description = '', metadata = {} }) {
   try {
     const currentCollection = await getCurrentCollection();
     if (!currentCollection) {
@@ -296,9 +298,9 @@ export async function addImageToCurrentCollection({ url, mediaId, description = 
       return null;
     }
     
-    return await addImageToCollection(currentCollection.id, { url, mediaId, description });
+    return await addImageToCollection(currentCollection.id, { url, mediaId, type, description, metadata });
   } catch (error) {
-    console.error('❌ Erreur ajout image à collection courante:', error);
+    console.error(`❌ Erreur ajout ${type === 'video' ? 'vidéo' : 'image'} à collection courante:`, error);
     throw error;
   }
 }

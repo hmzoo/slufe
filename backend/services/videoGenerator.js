@@ -1,6 +1,9 @@
 import Replicate from 'replicate';
+import fetch from 'node-fetch';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { VIDEO_DEFAULTS } from '../config/defaults.js';
+import { addImageToCurrentCollection } from './collectionManager.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
 
 /**
  * Service de génération de vidéos avec WAN 2.2 T2V Fast
@@ -232,6 +235,52 @@ export async function generateVideo(params) {
 
     console.log('🎥 Vidéo URL:', videoUrl);
 
+    // Télécharger et sauvegarder la vidéo localement + ajouter à la collection courante
+    try {
+      console.log('📥 Téléchargement de la vidéo générée...');
+      const response = await fetch(videoUrl);
+      if (!response.ok) {
+        throw new Error(`Erreur téléchargement: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
+      const filename = generateUniqueFileName(extension);
+      
+      // Sauvegarder localement
+      const savedFile = saveMediaFile(filename, buffer);
+      
+      // Extraire l'UUID depuis le nom de fichier pour le mediaId
+      const mediaId = filename.replace(/\.[^.]+$/, '');
+      
+      // Calculer durée
+      const duration = Math.round(numFrames / framesPerSecond * 10) / 10;
+      const finalFps = interpolateOutput ? 30 : framesPerSecond;
+      
+      // Ajouter la vidéo sauvegardée à la collection (URL relative)
+      await addImageToCurrentCollection({
+        url: `/medias/${filename}`, // URL relative
+        mediaId: mediaId, // UUID de la vidéo
+        type: 'video', // Marquer comme vidéo
+        description: `Vidéo T2V générée : "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`,
+        metadata: {
+          duration: `${duration}s`,
+          numFrames,
+          fps: finalFps,
+          aspectRatio,
+          resolution
+        }
+      });
+      
+      console.log(`💾 Vidéo générée sauvegardée et ajoutée à la collection: ${filename}`);
+      
+      // Mettre à jour videoUrl pour pointer vers le fichier local
+      videoUrl = `/medias/${filename}`;
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder la vidéo générée à la collection courante:', error.message);
+    }
+
     // Calculer durée
     const duration = Math.round(numFrames / framesPerSecond * 10) / 10;
     const finalFps = interpolateOutput ? 30 : framesPerSecond;
@@ -260,6 +309,11 @@ export async function generateVideo(params) {
     throw error;
   }
 }
+
+/**
+ * Alias pour generateVideo (pour compatibilité avec GenerateVideoT2VTask)
+ */
+export const generateVideoT2V = generateVideo;
 
 /**
  * Workflows prédéfinis pour différents cas d'usage

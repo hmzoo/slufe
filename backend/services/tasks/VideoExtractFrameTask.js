@@ -1,4 +1,5 @@
 import { extractVideoFrame } from '../videoProcessor.js';
+import path from 'path';
 
 /**
  * Service de tâche pour l'extraction de frames vidéo
@@ -27,7 +28,8 @@ export class VideoExtractFrameTask {
         timeCode: inputs.timeCode || '00:00:01',
         outputFormat: inputs.outputFormat || 'jpg',
         quality: inputs.quality || 95,
-        hasVideo: !!inputs.video
+        hasVideo: !!inputs.video,
+        videoType: typeof inputs.video
       });
 
       // Validation des entrées
@@ -36,9 +38,17 @@ export class VideoExtractFrameTask {
         throw new Error(`Entrées invalides: ${validation.errors.join(', ')}`);
       }
 
+      // Normaliser la vidéo (extraire URL/path depuis objets)
+      const normalizedVideo = this.normalizeVideoInput(inputs.video);
+      
+      global.logWorkflow(`🎥 Vidéo normalisée`, {
+        original: typeof inputs.video === 'object' ? 'object' : inputs.video,
+        normalized: normalizedVideo
+      });
+
       // Préparation des paramètres avec valeurs par défaut
       const params = {
-        video: inputs.video,
+        video: normalizedVideo,
         frameType: inputs.frameType || 'first',
         timeCode: inputs.timeCode || '00:00:01',
         outputFormat: inputs.outputFormat || 'jpg',
@@ -118,6 +128,55 @@ export class VideoExtractFrameTask {
       isValid: errors.length === 0,
       errors
     };
+  }
+
+  /**
+   * Normalise l'input vidéo pour extraire l'URL/chemin depuis différents formats
+   * @param {string|Buffer|Object} video - Vidéo à normaliser
+   * @returns {string|Buffer} URL, chemin ou buffer normalisé
+   */
+  /**
+   * Normalise l'input vidéo pour extraire l'URL/chemin depuis différents formats
+   * et convertir les URLs relatives en chemins absolus
+   * @param {string|Buffer|Object} video - Vidéo à normaliser
+   * @returns {string|Buffer} URL, chemin absolu ou buffer normalisé
+   */
+  normalizeVideoInput(video) {
+    // Si c'est un Buffer, retourner tel quel
+    if (Buffer.isBuffer(video)) {
+      return video;
+    }
+
+    let videoPath;
+
+    // Si c'est déjà une string
+    if (typeof video === 'string') {
+      videoPath = video;
+    }
+    // Si c'est un objet avec url
+    else if (video && typeof video === 'object' && video.url) {
+      videoPath = video.url;
+    }
+    // Si c'est un objet avec path
+    else if (video && typeof video === 'object' && video.path) {
+      videoPath = video.path;
+    }
+    // Si c'est un objet avec filename
+    else if (video && typeof video === 'object' && video.filename) {
+      videoPath = video.filename;
+    }
+    // Sinon retourner tel quel
+    else {
+      return video;
+    }
+
+    // Convertir les URLs relatives (/medias/...) en chemins absolus
+    if (videoPath.startsWith('/medias/')) {
+      const filename = videoPath.replace('/medias/', '');
+      videoPath = path.join(process.cwd(), 'medias', filename);
+    }
+
+    return videoPath;
   }
 
   /**

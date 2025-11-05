@@ -1,5 +1,4 @@
 import { generateVideoT2V } from '../videoGenerator.js';
-import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération de vidéo text-to-video
@@ -70,7 +69,7 @@ export class GenerateVideoT2VTask {
       });
 
       // Appel du service de génération vidéo existant
-      const result = await generateVideo({
+      const result = await generateVideoT2V({
         prompt: inputs.prompt,
         numFrames: generationParams.numFrames,
         aspectRatio: generationParams.aspectRatio,
@@ -87,30 +86,15 @@ export class GenerateVideoT2VTask {
         processingTime: result.processingTime
       });
 
-      // Télécharger et sauvegarder la vidéo localement
-      global.logWorkflow(`📥 Téléchargement de la vidéo T2V...`);
+      // La vidéo a déjà été téléchargée et sauvegardée par videoGenerator.js
+      // result.videoUrl contient maintenant l'URL locale /medias/...
       
-      const response = await fetch(result.videoUrl);
-      if (!response.ok) {
-        throw new Error(`Erreur téléchargement vidéo: ${response.status} ${response.statusText}`);
-      }
-      
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
-      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
-      const savedFile = saveMediaFile(filename, buffer);
-      
-      global.logWorkflow(`💾 Vidéo T2V sauvegardée localement`, {
-        filename: savedFile.filename,
-        url: savedFile.url,
-        size: `${Math.round(buffer.length / 1024 / 1024)}MB`
-      });
+      // Extraire le nom de fichier depuis l'URL locale
+      const filename = result.videoUrl.split('/').pop();
 
       return {
-        video: savedFile.url,
-        video_filename: savedFile.filename,
-        external_url: result.videoUrl, // Garder l'URL originale pour référence
+        video: result.videoUrl, // URL locale /medias/...
+        video_filename: filename,
         prompt_used: inputs.prompt,
         parameters_used: {
           numFrames: generationParams.numFrames,
@@ -121,6 +105,10 @@ export class GenerateVideoT2VTask {
         },
         metadata: {
           numFrames: generationParams.numFrames,
+          aspectRatio: generationParams.aspectRatio,
+          duration: result.params?.duration,
+          fps: result.params?.finalFps,
+          resolution: result.params?.resolution,
           model: this.modelName,
           generation_type: 'text_to_video',
           lora_applied: !!(loraWeightsTransformer || loraWeightsTransformer2)

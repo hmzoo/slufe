@@ -1,5 +1,4 @@
 import { generateVideoI2V } from '../videoImageGenerator.js';
-import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération de vidéo à partir d'image
@@ -21,12 +20,42 @@ export class GenerateVideoI2VTask {
    */
   async execute(inputs) {
     try {
-      // Normaliser l'image : si c'est un array, prendre le premier élément
-      if (Array.isArray(inputs.image) && inputs.image.length > 0) {
-        global.logWorkflow(`📎 Normalisation image: array → premier élément`, {
-          arrayLength: inputs.image.length
-        });
-        inputs.image = inputs.image[0];
+      // Normaliser les images : nouveau format avec image1, image2, image3
+      // Pour I2V, on ne prend que la première image
+      let sourceImage = null;
+      
+      // Collecter image1, image2, image3 et prendre la première disponible
+      if (inputs.image1) {
+        const normalized1 = this.normalizeImageInput(inputs.image1);
+        if (normalized1.length > 0) {
+          sourceImage = normalized1[0];
+        }
+      }
+      if (!sourceImage && inputs.image2) {
+        const normalized2 = this.normalizeImageInput(inputs.image2);
+        if (normalized2.length > 0) {
+          sourceImage = normalized2[0];
+        }
+      }
+      if (!sourceImage && inputs.image3) {
+        const normalized3 = this.normalizeImageInput(inputs.image3);
+        if (normalized3.length > 0) {
+          sourceImage = normalized3[0];
+        }
+      }
+      
+      // Fallback sur inputs.image si présent
+      if (!sourceImage && inputs.image) {
+        if (Array.isArray(inputs.image) && inputs.image.length > 0) {
+          sourceImage = inputs.image[0];
+        } else {
+          sourceImage = inputs.image;
+        }
+      }
+      
+      // Mettre à jour inputs.image avec l'image normalisée
+      if (sourceImage) {
+        inputs.image = sourceImage;
       }
 
       global.logWorkflow(`🎞️ Génération vidéo I2V`, {
@@ -34,6 +63,7 @@ export class GenerateVideoI2VTask {
         prompt: inputs.prompt?.substring(0, 100) + '...',
         hasSourceImage: !!inputs.image,
         hasLastImage: !!inputs.lastImage,
+        sourceImageType: typeof inputs.image,
         parameters: inputs.parameters
       });
 
@@ -58,17 +88,26 @@ export class GenerateVideoI2VTask {
 
       global.logWorkflow(`⚙️ Paramètres de génération vidéo`, generationParams);
 
+      // Normaliser les images avant de les passer au service
+      // Le service attend des strings (URLs/chemins) ou des buffers, pas des objets
+      const normalizedImage = this.normalizeImageInput(inputs.image);
+      const normalizedLastImage = inputs.lastImage ? this.normalizeImageInput(inputs.lastImage) : undefined;
+      
+      global.logWorkflow(`🖼️ Images normalisées`, {
+        image: Array.isArray(normalizedImage) ? normalizedImage[0] : normalizedImage,
+        lastImage: normalizedLastImage ? (Array.isArray(normalizedLastImage) ? normalizedLastImage[0] : normalizedLastImage) : 'none'
+      });
+
       // Appel du service de génération vidéo existant
-      // Note: Le service attend "image" (sera converti en buffer si nécessaire)
-      // puis utilisé comme "startImage" pour Replicate
+      // Note: Le service attend "image" (string URL/chemin ou buffer)
       
       // numFrames: 81 (rapide) ou 121 (long) - défaut 81
       const numFrames = generationParams.numFrames || 81;
       const aspectRatio = inputs.aspectRatio || generationParams.aspectRatio || '16:9';
       
-      const result = await generateVideoFromImage({
-        image: inputs.image, // Buffer ou URL - sera converti automatiquement
-        lastImage: inputs.lastImage, // Image de fin optionnelle pour transition fluide
+      const result = await generateVideoI2V({
+        image: Array.isArray(normalizedImage) ? normalizedImage[0] : normalizedImage, // String URL/chemin
+        lastImage: normalizedLastImage ? (Array.isArray(normalizedLastImage) ? normalizedLastImage[0] : normalizedLastImage) : undefined,
         prompt: inputs.prompt,
         numFrames: numFrames,
         aspectRatio: aspectRatio,
@@ -82,36 +121,21 @@ export class GenerateVideoI2VTask {
 
       const videoUrl = result.videoUrl || result;
 
-      global.logWorkflow(`✅ Vidéo générée avec succès`, {
+      global.logWorkflow(`✅ Vidéo I2V générée avec succès`, {
         videoUrl: typeof videoUrl === 'string' ? videoUrl.substring(0, 100) + '...' : 'Video generated',
         duration: generationParams.duration,
         resolution: `${generationParams.width}x${generationParams.height}`
       });
 
-      // Télécharger et sauvegarder la vidéo localement
-      global.logWorkflow(`📥 Téléchargement de la vidéo générée...`);
+      // La vidéo a déjà été téléchargée et sauvegardée par videoImageGenerator.js
+      // videoUrl contient maintenant l'URL locale /medias/...
       
-      const response = await fetch(videoUrl);
-      if (!response.ok) {
-        throw new Error(`Erreur téléchargement vidéo: ${response.status} ${response.statusText}`);
-      }
-      
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const extension = getFileExtension(response.headers.get('content-type') || 'video/mp4');
-      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
-      const savedFile = saveMediaFile(filename, buffer);
-      
-      global.logWorkflow(`💾 Vidéo sauvegardée localement`, {
-        filename: savedFile.filename,
-        url: savedFile.url,
-        size: `${Math.round(buffer.length / 1024 / 1024)}MB`
-      });
+      // Extraire le nom de fichier depuis l'URL locale
+      const filename = videoUrl.split('/').pop();
 
       return {
-        video: savedFile.url,
-        video_filename: savedFile.filename,
-        external_url: videoUrl, // Garder l'URL originale pour référence
+        video: videoUrl, // URL locale /medias/...
+        video_filename: filename,
         prompt_used: inputs.prompt,
         source_image: inputs.image,
         last_image: inputs.lastImage,
@@ -185,9 +209,15 @@ export class GenerateVideoI2VTask {
     } else if (Array.isArray(inputs.image)) {
       // Si c'est encore un array à ce stade, c'est qu'il est vide
       errors.push('L\'image source est requise (tableau vide reçu)');
-    } else if (typeof inputs.image !== 'string' && (!inputs.image.buffer || !Buffer.isBuffer(inputs.image.buffer))) {
-      // Accepter string (URL) OU objet buffer {buffer, mimeType, ...}
-      errors.push('L\'image source doit être une URL, un chemin ou un buffer d\'image');
+    } else {
+      // Accepter string (URL/chemin) OU objet buffer {buffer, mimeType, ...} OU objet avec url/path
+      const isValidString = typeof inputs.image === 'string';
+      const isValidBuffer = inputs.image && typeof inputs.image === 'object' && inputs.image.buffer && Buffer.isBuffer(inputs.image.buffer);
+      const isValidObject = inputs.image && typeof inputs.image === 'object' && (inputs.image.url || inputs.image.path);
+      
+      if (!isValidString && !isValidBuffer && !isValidObject) {
+        errors.push('L\'image source doit être une URL, un chemin, un objet avec url/path, ou un buffer d\'image');
+      }
     }
 
     // Validation du format vidéo (niveau inputs)
@@ -403,6 +433,97 @@ export class GenerateVideoI2VTask {
       estimatedDuration: 60, // secondes
       costEstimate: 0.25 // USD
     };
+  }
+
+  /**
+   * Normalise un input d'image en gérant différents formats
+   * @param {*} input - Input à normaliser (peut être une string, array, ou objet)
+   * @returns {Array} Array d'URLs d'images
+   */
+  normalizeImageInput(input) {
+    const images = [];
+    
+    global.logWorkflow(`🔍 Normalisation input image I2V:`, {
+      type: typeof input,
+      isArray: Array.isArray(input),
+      isNull: input === null,
+      value: typeof input === 'string' ? input.substring(0, 100) : 'N/A',
+      objectKeys: typeof input === 'object' && input !== null && !Array.isArray(input) ? Object.keys(input) : 'N/A'
+    });
+
+    // Cas 1: String (URL, chemin ou ID)
+    if (typeof input === 'string') {
+      // URLs et chemins valides
+      if (input.startsWith('http://') || input.startsWith('https://') || 
+          input.startsWith('/medias/') || input.startsWith('data:')) {
+        images.push(input);
+        global.logWorkflow(`✅ URL/chemin détecté: ${input.substring(0, 50)}...`);
+      }
+      // UUID - devrait être résolu par WorkflowRunner
+      else if (input.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        // Le WorkflowRunner devrait avoir résolu cet UUID en URL
+        // Si on arrive ici, c'est qu'il n'a pas été résolu - on le garde tel quel
+        global.logWorkflow(`⚠️ UUID non résolu: ${input} (sera géré par le service)`);
+        images.push(input);
+      }
+      // ID de collection
+      else if (input.startsWith('collection_')) {
+        global.logWorkflow(`⚠️ Collection ID non résolu: ${input} (sera géré par le service)`);
+        images.push(input);
+      }
+      else {
+        global.logWorkflow(`⚠️ String non reconnue: ${input}`);
+        images.push(input);
+      }
+    }
+    // Cas 2: Objet avec url, path ou filename
+    else if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+      // Objet média avec url
+      if (input.url) {
+        images.push(input.url);
+        global.logWorkflow(`✅ Objet avec URL: ${input.url}`);
+      }
+      // Objet média avec path
+      else if (input.path) {
+        // Convertir le chemin absolu en URL locale
+        const filename = input.path.split('/').pop() || input.path.split('\\').pop();
+        const url = `/medias/${filename}`;
+        images.push(url);
+        global.logWorkflow(`✅ Objet avec path converti: ${input.path} -> ${url}`);
+      }
+      // Objet média avec filename
+      else if (input.filename) {
+        const url = `/medias/${input.filename}`;
+        images.push(url);
+        global.logWorkflow(`✅ Objet avec filename converti: ${input.filename} -> ${url}`);
+      }
+      // Objet avec clés numériques (array-like)
+      else {
+        const keys = Object.keys(input).filter(key => /^\d+$/.test(key)).sort((a, b) => parseInt(a) - parseInt(b));
+        if (keys.length > 0) {
+          global.logWorkflow(`🔍 Objet avec clés numériques:`, { keys });
+          for (const key of keys) {
+            const subImages = this.normalizeImageInput(input[key]);
+            images.push(...subImages);
+          }
+        } else {
+          global.logWorkflow(`⚠️ Objet sans url/path/filename:`, { keys: Object.keys(input) });
+        }
+      }
+    }
+    // Cas 3: Array
+    else if (Array.isArray(input)) {
+      global.logWorkflow(`🔍 Array détecté:`, { length: input.length });
+      for (const item of input) {
+        const subImages = this.normalizeImageInput(item);
+        images.push(...subImages);
+      }
+    }
+    else {
+      global.logWorkflow(`⚠️ Type non géré:`, { type: typeof input });
+    }
+
+    return images;
   }
 }
 
