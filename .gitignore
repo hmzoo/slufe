@@ -6,8 +6,24 @@ node_modules/
 backend/.env
 backend/uploads/
 backend/data/
+backend/medias/
+backend/collections/
 
 # Frontend
 frontend/dist/
 frontend/.quasar/
 .vercel
+
+# Médias et collections (ajoutés Session 2)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.svg
+*.mp4
+*.webm
+*.ogg
+*.avi
+*.mov
