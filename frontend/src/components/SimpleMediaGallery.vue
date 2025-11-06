@@ -339,7 +339,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import CollectionImageUpload from './CollectionImageUpload.vue'
@@ -365,7 +365,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'selected', 'upload', 'close'])
 
 // Stores
-const mediaStore = useMediaStore()
+const collectionStore = useCollectionStore()
 const $q = useQuasar()
 
 // Collections
@@ -546,7 +546,7 @@ function truncateName(name, maxLength = 15) {
 }
 
 function formatFileSize(bytes) {
-  return mediaStore.formatFileSize(bytes)
+  return collectionStore.formatFileSize(bytes)
 }
 
 function formatDate(date) {

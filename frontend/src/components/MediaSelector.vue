@@ -60,7 +60,7 @@
               {{ selectedMedia.originalName || selectedMedia.filename }}
             </div>
             <div class="text-caption text-grey-6">
-              {{ selectedMedia.type }} • {{ mediaStore.formatFileSize(selectedMedia.size) }}
+              {{ selectedMedia.type }} • {{ collectionStore.formatFileSize(selectedMedia.size) }}
               <span v-if="selectedMedia.usageCount > 0">
                 • Utilisé {{ selectedMedia.usageCount }}×
               </span>
@@ -130,7 +130,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import SimpleMediaGallery from './SimpleMediaGallery.vue'
@@ -185,7 +185,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'selected', 'uploaded', 'cleared'])
 
 // Stores
-const mediaStore = useMediaStore()
+const mediaStore = useCollectionStore()
 const $q = useQuasar()
 
 // État local
@@ -218,7 +218,7 @@ const selectedMedia = computed(() => {
     if (ids.length === 0) return null
     
     const mediaId = ids[0]
-    const media = mediaStore.getMedia(mediaId)
+    const media = collectionStore.getMedia(mediaId)
     
     // Si pas trouvé et c'est un ID de collection, utiliser le média résolu
     if (!media && mediaId && mediaId.startsWith('collection_') && resolvedCollectionMedia.value) {
@@ -228,7 +228,7 @@ const selectedMedia = computed(() => {
     return media
   } else {
     // Mode single
-    const media = mediaStore.getMedia(props.modelValue)
+    const media = collectionStore.getMedia(props.modelValue)
     
     // Si pas trouvé et c'est un ID de collection, utiliser le média résolu
     if (!media && props.modelValue && props.modelValue.startsWith('collection_') && resolvedCollectionMedia.value) {
@@ -308,7 +308,7 @@ watch(() => props.modelValue, async (newValue) => {
   // Si c'est un UUID, vérifier s'il est dans le store, sinon le récupérer de l'API
   else if (mediaId && mediaId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
     // Vérifier si déjà dans le store
-    const existingMedia = mediaStore.getMedia(mediaId)
+    const existingMedia = collectionStore.getMedia(mediaId)
     if (!existingMedia) {
       // Récupérer depuis l'API
       try {
@@ -316,7 +316,7 @@ watch(() => props.modelValue, async (newValue) => {
         if (response.data.success && response.data.media) {
           const media = response.data.media
           // Ajouter au store pour usage futur
-          mediaStore.medias.set(mediaId, {
+          collectionStore.medias.set(mediaId, {
             id: media.id,
             url: media.url,
             type: media.type,
@@ -364,7 +364,7 @@ async function uploadFiles(files) {
     let result
     
     if (props.multiple) {
-      result = await mediaStore.uploadMultiple(files)
+      result = await collectionStore.uploadMultiple(files)
       const uploadedIds = result.uploaded.map(media => media.id)
       
       // Ajouter aux sélections existantes ou remplacer
@@ -374,7 +374,7 @@ async function uploadFiles(files) {
       emit('update:modelValue', newIds)
       emit('uploaded', result.uploaded)
     } else {
-      result = await mediaStore.uploadSingle(files[0])
+      result = await collectionStore.uploadSingle(files[0])
       emit('update:modelValue', result.id)
       emit('uploaded', [result])
     }
