@@ -1081,21 +1081,26 @@ const selectImageFromCollection = (inputKey) => {
         return
     }
     
-    // Créer un dialog personnalisé avec une galerie
+    // Utiliser MediaSelector (module collection) pour sélectionner une image
     $q.dialog({
-        component: defineAsyncComponent(() => import('./ImageGallerySelector.vue')),
+        component: defineAsyncComponent(() => import('./MediaSelector.vue')),
         componentProps: {
-            images: collectionStore.currentCollectionMedias.filter(media => media.type === 'image'),
-            selectedImage: taskForm.value[inputKey] || null,
-            title: 'Sélectionner une image'
+            modelValue: taskForm.value[inputKey] || null,
+            label: 'Sélectionner une image',
+            accept: ['image'],
+            multiple: false,
+            hidePreview: true
         }
-    }).onOk(selectedImage => {
-        if (selectedImage) {
-            taskForm.value[inputKey] = selectedImage.url
+    }).onOk(selectedUrl => {
+        if (selectedUrl) {
+            taskForm.value[inputKey] = selectedUrl
+            
+            // Trouver le média sélectionné pour afficher son nom
+            const selectedMedia = collectionStore.currentCollectionMedias.find(m => m.url === selectedUrl)
             
             $q.notify({
                 type: 'positive',
-                message: `Image "${selectedImage.description || 'sélectionnée'}" choisie`,
+                message: `Image "${selectedMedia?.description || selectedMedia?.originalName || 'sélectionnée'}" choisie`,
                 position: 'top'
             })
         }
