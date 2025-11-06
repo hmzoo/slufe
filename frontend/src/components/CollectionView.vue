@@ -322,6 +322,17 @@
                           <q-btn 
                             flat 
                             round 
+                            icon="link" 
+                            size="sm"
+                            color="blue-grey"
+                            @click.stop="copyMediaLink(media)"
+                          >
+                            <q-tooltip>Copier le lien</q-tooltip>
+                          </q-btn>
+                          
+                          <q-btn 
+                            flat 
+                            round 
                             icon="download" 
                             size="sm"
                             @click.stop="downloadMedia(media)"
@@ -537,6 +548,13 @@
         <!-- Footer avec actions -->
         <q-card-actions class="bg-dark" style="position: absolute; bottom: 0; left: 0; right: 0;">
           <q-space />
+          <q-btn 
+            flat 
+            icon="link" 
+            label="Copier le lien"
+            color="blue-grey"
+            @click="copyMediaLink(previewedMedia)"
+          />
           <q-btn 
             flat 
             icon="download" 
@@ -902,6 +920,45 @@ const downloadMedia = (media) => {
   link.href = media.url
   link.download = media.description || 'media'
   link.click()
+}
+
+// Copier le lien du média
+const copyMediaLink = (media) => {
+  if (!media || !media.url) {
+    $q.notify({
+      type: 'warning',
+      message: 'Aucun lien à copier',
+      timeout: 2000
+    })
+    return
+  }
+  
+  // Construire l'URL complète si c'est un chemin relatif
+  let fullUrl = media.url
+  if (media.url.startsWith('/')) {
+    // URL relative - ajouter l'origine du site
+    fullUrl = window.location.origin + media.url
+  }
+  
+  // Copier dans le presse-papiers
+  navigator.clipboard.writeText(fullUrl)
+    .then(() => {
+      $q.notify({
+        type: 'positive',
+        message: 'Lien copié dans le presse-papiers !',
+        caption: fullUrl,
+        timeout: 3000,
+        icon: 'link'
+      })
+    })
+    .catch((err) => {
+      console.error('Erreur copie lien:', err)
+      $q.notify({
+        type: 'negative',
+        message: 'Impossible de copier le lien',
+        timeout: 2000
+      })
+    })
 }
 
 const removeMediaFromCollection = async (media) => {

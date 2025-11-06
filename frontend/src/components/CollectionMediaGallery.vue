@@ -215,6 +215,13 @@
             <div class="col-auto">
               <q-btn-group>
                 <q-btn 
+                  icon="link"
+                  label="Copier le lien"
+                  color="blue-grey"
+                  @click="copyMediaLink(currentViewedImage)"
+                  :title="'Copier le lien de cette ' + (currentViewedImage?.type === 'video' ? 'vidéo' : 'image')"
+                />
+                <q-btn 
                   v-if="!isSelected(currentViewedImage?.id)"
                   icon="add" 
                   label="Sélectionner"
@@ -590,6 +597,45 @@ function nextImage() {
 function goToImage(index) {
   currentImageIndex.value = index
   currentViewedImage.value = displayedMedias.value[index]
+}
+
+// Copier le lien du média
+function copyMediaLink(media) {
+  if (!media || !media.url) {
+    $q.notify({
+      type: 'warning',
+      message: 'Aucun lien à copier',
+      timeout: 2000
+    })
+    return
+  }
+  
+  // Construire l'URL complète si c'est un chemin relatif
+  let fullUrl = media.url
+  if (media.url.startsWith('/')) {
+    // URL relative - ajouter l'origine du site
+    fullUrl = window.location.origin + media.url
+  }
+  
+  // Copier dans le presse-papiers
+  navigator.clipboard.writeText(fullUrl)
+    .then(() => {
+      $q.notify({
+        type: 'positive',
+        message: 'Lien copié dans le presse-papiers !',
+        caption: fullUrl,
+        timeout: 3000,
+        icon: 'link'
+      })
+    })
+    .catch((err) => {
+      console.error('Erreur copie lien:', err)
+      $q.notify({
+        type: 'negative',
+        message: 'Impossible de copier le lien',
+        timeout: 2000
+      })
+    })
 }
 
 // Watchers - Initialiser la sélection
