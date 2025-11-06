@@ -1,6 +1,8 @@
 import Replicate from 'replicate';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import path from 'path';
+import { promises as fs } from 'fs';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 
 dotenv.config();
@@ -69,16 +71,44 @@ export async function analyzeImage(imageInput, customPrompt = null) {
       const base64 = imageInput.toString('base64');
       imageData = `data:image/jpeg;base64,${base64}`;
     }
+    // Si c'est un chemin local relatif (/medias/...), le charger depuis le système de fichiers
+    else if (typeof imageInput === 'string' && imageInput.startsWith('/medias/')) {
+      console.log('📂 Chargement de l\'image locale:', imageInput);
+      const filename = imageInput.replace('/medias/', '');
+      const filePath = path.join(process.cwd(), 'medias', filename);
+      
+      try {
+        const buffer = await fs.readFile(filePath);
+        const base64 = buffer.toString('base64');
+        
+        // Déterminer le type MIME depuis l'extension
+        const ext = path.extname(filename).toLowerCase();
+        const mimeTypes = {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp'
+        };
+        const mimeType = mimeTypes[ext] || 'image/jpeg';
+        
+        imageData = `data:${mimeType};base64,${base64}`;
+        console.log('✅ Image locale chargée et convertie en base64');
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement de l\'image locale:', error.message);
+        throw new Error(`Impossible de charger l'image: ${filePath}`);
+      }
+    }
     // Si c'est une URL distante, la convertir en base64
     else if (typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'))) {
       imageData = await urlToBase64(imageInput);
     }
     // Si c'est déjà une data URI, l'utiliser directement
-    else if (typeof imageInput === 'string') {
+    else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
       imageData = imageInput;
     }
     else {
-      throw new Error('Format d\'image non supporté');
+      throw new Error(`Format d'image non supporté: ${typeof imageInput === 'string' ? imageInput.substring(0, 50) : typeof imageInput}`);
     }
 
     const prompt = customPrompt || "Give a detailed description of this image.";

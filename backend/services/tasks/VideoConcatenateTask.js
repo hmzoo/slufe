@@ -1,4 +1,5 @@
 import { concatenateVideos } from '../videoProcessor.js';
+import { addImageToCurrentCollection } from '../collectionManager.js';
 import path from 'path';
 
 /**
@@ -62,6 +63,37 @@ export class VideoConcatenateTask {
         outputFile: result.file_info.filename,
         outputSize: `${result.file_info.size_mb}MB`
       });
+
+      // Ajouter la vidéo concaténée à la collection courante
+      try {
+        const videoMetadata = {
+          inputCount: result.concat_info.input_count,
+          totalDuration: result.concat_info.total_duration,
+          resolution: result.concat_info.resolution,
+          fps: result.concat_info.fps,
+          format: params.outputFormat,
+          quality: params.quality,
+          size_mb: result.file_info.size_mb
+        };
+
+        await addImageToCurrentCollection({
+          url: result.video_url,
+          mediaId: result.file_info.filename.replace(/\.\w+$/, ''), // Extraire UUID du nom de fichier
+          type: 'video',
+          description: `Vidéo concaténée : ${result.concat_info.input_count} vidéos fusionnées`,
+          metadata: videoMetadata
+        });
+
+        global.logWorkflow(`📁 Vidéo ajoutée à la collection courante`, {
+          filename: result.file_info.filename,
+          duration: `${result.concat_info.total_duration.toFixed(2)}s`
+        });
+      } catch (collectionError) {
+        // Ne pas faire échouer la tâche si l'ajout à la collection échoue
+        global.logWorkflow(`⚠️ Erreur lors de l'ajout à la collection`, {
+          error: collectionError.message
+        });
+      }
 
       return {
         video_url: result.video_url,
