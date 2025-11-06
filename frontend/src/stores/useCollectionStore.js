@@ -1,16 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from 'src/boot/axios'
+import { uploadMediaService } from 'src/services/uploadMedia'
 
 export const useCollectionStore = defineStore('collections', () => {
-  // State
+  // State - Collections
   const collections = ref([])
   const currentCollection = ref(null) // Collection actuellement visualisée
   const serverCurrentCollection = ref(null) // Collection active sur le serveur
   const loading = ref(false)
   const error = ref(null)
 
-  // Getters
+  // State - Session temporaire (médias pas encore dans collections)
+  const sessionMedias = ref(new Map())
+  const sessionLoading = ref(false)
+  const sessionError = ref(null)
+
+  // Getters - Collections
   const hasCollections = computed(() => collections.value.length > 0)
   const hasCurrentCollection = computed(() => currentCollection.value !== null)
   const currentCollectionMedias = computed(() => currentCollection.value?.images || [])
@@ -24,6 +30,35 @@ export const useCollectionStore = defineStore('collections', () => {
       videos: medias.filter(m => m.type === 'video').length
     }
   })
+
+  // Getters - Médias globaux (session + collections)
+  const allMedias = computed(() => {
+    // Médias en session
+    const sessionArray = Array.from(sessionMedias.value.values())
+    
+    // Médias dans collections
+    const collectionMedias = collections.value.flatMap(c => c.images || [])
+    
+    return [...sessionArray, ...collectionMedias]
+  })
+
+  const images = computed(() => 
+    allMedias.value.filter(m => m.type === 'image')
+  )
+
+  const videos = computed(() => 
+    allMedias.value.filter(m => m.type === 'video')
+  )
+
+  const audios = computed(() => 
+    allMedias.value.filter(m => m.type === 'audio')
+  )
+
+  const totalCount = computed(() => allMedias.value.length)
+
+  const totalSize = computed(() => 
+    allMedias.value.reduce((sum, m) => sum + (m.size || 0), 0)
+  )
 
   // Actions
   const fetchCollections = async () => {
@@ -301,6 +336,171 @@ export const useCollectionStore = defineStore('collections', () => {
     workflowSelectionMode.value = false
   }
 
+  // ========== NOUVELLES FONCTIONNALITÉS: GESTION MÉDIAS SESSION ==========
+
+  // Actions - Upload vers session temporaire
+  const uploadSingle = async (file) => {
+    try {
+      sessionLoading.value = true
+      sessionError.value = null
+      
+      const result = await uploadMediaService.uploadSingle(file)
+      
+      if (result.success && result.media) {
+        const media = {
+          ...result.media,
+          inSession: true,
+          usageCount: 0,
+          lastUsed: null,
+          addedToStore: new Date().toISOString()
+        }
+        sessionMedias.value.set(result.media.id, media)
+        return media
+      } else {
+        throw new Error('Upload échoué')
+      }
+    } catch (err) {
+      sessionError.value = err.message
+      throw err
+    } finally {
+      sessionLoading.value = false
+    }
+  }
+
+  const uploadMultiple = async (files) => {
+    try {
+      sessionLoading.value = true
+      sessionError.value = null
+      
+      const result = await uploadMediaService.uploadMultiple(files)
+      
+      if (result.success) {
+        const uploadedMedias = result.uploaded.map(mediaInfo => {
+          const media = {
+            ...mediaInfo,
+            inSession: true,
+            usageCount: 0,
+            lastUsed: null,
+            addedToStore: new Date().toISOString()
+          }
+          sessionMedias.value.set(mediaInfo.id, media)
+          return media
+        })
+        return {
+          ...result,
+          uploaded: uploadedMedias
+        }
+      } else {
+        throw new Error('Upload multiple échoué')
+      }
+    } catch (err) {
+      sessionError.value = err.message
+      throw err
+    } finally {
+      sessionLoading.value = false
+    }
+  }
+
+  // Actions - Gestion session
+  const getMedia = (id) => {
+    // Chercher en session
+    const sessionMedia = sessionMedias.value.get(id)
+    if (sessionMedia) return sessionMedia
+    
+    // Chercher dans collections
+    for (const collection of collections.value) {
+      const media = collection.images?.find(m => m.mediaId === id || m.id === id)
+      if (media) return media
+    }
+    
+    return null
+  }
+
+  const useMedia = (id) => {
+    const media = getMedia(id)
+    if (media && media.inSession) {
+      // Marquer comme utilisé si c'est un média de session
+      media.usageCount++
+      media.lastUsed = new Date().toISOString()
+    }
+    return media
+  }
+
+  const moveToCollection = async (mediaId, collectionId) => {
+    const media = sessionMedias.value.get(mediaId)
+    if (!media) {
+      throw new Error(`Média ${mediaId} non trouvé dans la session`)
+    }
+    
+    await addMediaToCollection(collectionId, media)
+    sessionMedias.value.delete(mediaId)
+  }
+
+  const clearSession = () => {
+    sessionMedias.value.clear()
+  }
+
+  const loadAllMedias = async () => {
+    // Recharger les collections
+    await fetchCollections()
+    // Note: Les médias de session restent inchangés
+  }
+
+  const deleteMedia = async (id) => {
+    // Si c'est un média de session
+    if (sessionMedias.value.has(id)) {
+      sessionMedias.value.delete(id)
+      return
+    }
+    
+    // Si c'est dans une collection, trouver et supprimer
+    for (const collection of collections.value) {
+      const media = collection.images?.find(m => m.mediaId === id || m.id === id)
+      if (media) {
+        await removeMediaFromCollection(collection.id, media.mediaId || id)
+        return
+      }
+    }
+  }
+
+  // Méthodes utilitaires
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  const getRecent = (limit = 20) => {
+    return allMedias.value
+      .sort((a, b) => {
+        const dateA = new Date(a.uploadedAt || a.addedToStore || 0)
+        const dateB = new Date(b.uploadedAt || b.addedToStore || 0)
+        return dateB - dateA
+      })
+      .slice(0, limit)
+  }
+
+  const getMostUsed = (limit = 20) => {
+    return allMedias.value
+      .filter(m => m.usageCount && m.usageCount > 0)
+      .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
+      .slice(0, limit)
+  }
+
+  const searchMedias = (query) => {
+    if (!query || query.trim() === '') return allMedias.value
+    
+    const lowerQuery = query.toLowerCase()
+    return allMedias.value.filter(m => 
+      m.filename?.toLowerCase().includes(lowerQuery) ||
+      m.description?.toLowerCase().includes(lowerQuery) ||
+      m.name?.toLowerCase().includes(lowerQuery) ||
+      m.mediaId?.toLowerCase().includes(lowerQuery)
+    )
+  }
+
   // Fonction pour réinitialiser le store
   const reset = () => {
     collections.value = []
@@ -310,27 +510,43 @@ export const useCollectionStore = defineStore('collections', () => {
     error.value = null
     selectedMediasForWorkflow.value = []
     workflowSelectionMode.value = false
+    sessionMedias.value.clear()
+    sessionLoading.value = false
+    sessionError.value = null
   }
 
   return {
-    // State
+    // State - Collections
     collections,
     currentCollection,
     serverCurrentCollection,
     loading,
     error,
 
+    // State - Session
+    sessionMedias,
+    sessionLoading,
+    sessionError,
+
     // Workflow selection state
     selectedMediasForWorkflow,
     workflowSelectionMode,
 
-    // Getters
+    // Getters - Collections
     hasCollections,
     hasCurrentCollection,
     currentCollectionMedias,
     currentCollectionStats,
 
-    // Actions
+    // Getters - Médias globaux
+    allMedias,
+    images,
+    videos,
+    audios,
+    totalCount,
+    totalSize,
+
+    // Actions - Collections
     fetchCollections,
     fetchCurrentCollection,
     fetchCollectionById,
@@ -342,12 +558,29 @@ export const useCollectionStore = defineStore('collections', () => {
     addMediaToCollection,
     removeMediaFromCollection,
     
+    // Actions - Session & Upload
+    uploadSingle,
+    uploadMultiple,
+    getMedia,
+    useMedia,
+    moveToCollection,
+    clearSession,
+    loadAllMedias,
+    deleteMedia,
+
+    // Méthodes utilitaires
+    formatFileSize,
+    getRecent,
+    getMostUsed,
+    searchMedias,
+    
     // Workflow selection actions
     toggleWorkflowSelectionMode,
     toggleMediaForWorkflow,
     selectAllMediasForWorkflow,
     clearWorkflowSelection,
     
+    // Initialisation
     refreshAll,
     initialize,
     reset
