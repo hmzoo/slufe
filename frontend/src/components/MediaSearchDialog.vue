@@ -133,13 +133,13 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 
 // Émissions
 const emit = defineEmits(['search', 'close'])
 
 // Store
-const mediaStore = useMediaStore()
+const collectionStore = useCollectionStore()
 
 // État local
 const searchQuery = ref('')
@@ -172,7 +172,7 @@ const hasFilters = computed(() => {
 
 const quickResults = computed(() => {
   if (!searchQuery.value || searchQuery.value.length < 2) return []
-  return mediaStore.searchMedias(searchQuery.value)
+  return collectionStore.searchMedias(searchQuery.value)
 })
 
 // Watchers - Recherche en temps réel
