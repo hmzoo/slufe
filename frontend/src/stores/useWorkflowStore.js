@@ -387,6 +387,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
       inputValues: getDefaultInputValues(workflowTemplate.inputs)
     }
     error.value = null
+    persistCurrentWorkflow()
   }
 
   function getDefaultInputValues(inputs) {
@@ -417,6 +418,27 @@ export const useWorkflowStore = defineStore('workflow', () => {
   function updateWorkflowDefinition(workflow) {
     if (currentWorkflow.value) {
       currentWorkflow.value.workflow = workflow
+      persistCurrentWorkflow()
+    }
+  }
+
+  function setCurrentBuilderWorkflow(workflow) {
+    currentWorkflow.value = workflow
+    persistCurrentWorkflow()
+  }
+
+  function getCurrentBuilderWorkflow() {
+    try {
+      const stored = localStorage.getItem('slufe_current_workflow')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        console.log('📥 Workflow Builder récupéré depuis localStorage:', parsed)
+        return parsed
+      }
+      return null
+    } catch (e) {
+      console.warn('⚠️ Erreur lors de la récupération du workflow Builder:', e)
+      return null
     }
   }
 
@@ -501,6 +523,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
         }
 
         console.log('🚀 Exécution workflow:', payload)
+        console.log('📋 Workflow structure:', JSON.stringify(payload.workflow, null, 2))
 
         response = await api.post('/workflow/run', payload)
       }
@@ -520,6 +543,18 @@ export const useWorkflowStore = defineStore('workflow', () => {
         // Limiter l'historique à 50 entrées
         if (workflowHistory.value.length > 50) {
           workflowHistory.value = workflowHistory.value.slice(0, 50)
+        }
+
+        // Proposer de sauvegarder les résultats dans la collection courante
+        if (response.data.results && Array.isArray(response.data.results)) {
+          const mediaResults = response.data.results.filter(result => 
+            result.type === 'image' || result.type === 'video'
+          )
+          
+          if (mediaResults.length > 0) {
+            lastResult.value.saveToCollectionAvailable = true
+            lastResult.value.mediaResults = mediaResults
+          }
         }
 
         return response.data
@@ -549,6 +584,15 @@ export const useWorkflowStore = defineStore('workflow', () => {
 
   function clearResult() {
     lastResult.value = null
+  }
+
+  async function saveResultsToCurrentCollection() {
+    if (!lastResult.value?.mediaResults) {
+      throw new Error('Aucun résultat média à sauvegarder')
+    }
+
+    // Utiliser la collection store (sera injectée par le composant)
+    return lastResult.value.mediaResults
   }
 
   function saveWorkflow(name, description, workflowToSave = null) {
@@ -691,8 +735,27 @@ export const useWorkflowStore = defineStore('workflow', () => {
       if (saved) {
         savedWorkflows.value = JSON.parse(saved)
       }
+      
+      // Charger aussi le workflow en cours s'il existe
+      const currentSaved = localStorage.getItem('slufe_current_workflow')
+      if (currentSaved) {
+        currentWorkflow.value = JSON.parse(currentSaved)
+        console.log('📋 Workflow en cours restauré depuis localStorage')
+      }
     } catch (e) {
       console.warn('Erreur chargement workflows sauvegardés:', e)
+    }
+  }
+
+  function persistCurrentWorkflow() {
+    try {
+      if (currentWorkflow.value) {
+        localStorage.setItem('slufe_current_workflow', JSON.stringify(currentWorkflow.value))
+      } else {
+        localStorage.removeItem('slufe_current_workflow')
+      }
+    } catch (e) {
+      console.warn('Erreur sauvegarde workflow en cours:', e)
     }
   }
 
@@ -786,6 +849,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     resetCurrentWorkflow,
     clearError,
     clearResult,
+    saveResultsToCurrentCollection,
     saveWorkflow,
     updateWorkflow,
     duplicateWorkflow,
@@ -795,6 +859,10 @@ export const useWorkflowStore = defineStore('workflow', () => {
     getTemplateById,
     exportWorkflow,
     importWorkflow,
-    persistSavedWorkflows
+    persistSavedWorkflows,
+    persistCurrentWorkflow,
+    setCurrentBuilderWorkflow,
+    getCurrentBuilderWorkflow,
+    loadSavedWorkflows
   }
 })

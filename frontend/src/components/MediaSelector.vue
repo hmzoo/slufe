@@ -281,7 +281,7 @@ watch(() => props.modelValue, async (newValue) => {
   // Si c'est un ID de collection, le résoudre
   if (mediaId && mediaId.startsWith('collection_')) {
     try {
-      const response = await api.get('/collections/current/gallery')
+      const response = await api.get('/api/collections/current/gallery')
       if (response.data.success) {
         const indexMatch = mediaId.match(/collection_(\d+)/)
         if (indexMatch) {

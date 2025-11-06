@@ -1,0 +1,87 @@
+{
+  "id": "example-workflow-v2",
+  "name": "Exemple de workflow v2",
+  "description": "Exemple de la nouvelle structure avec inputs, tasks et outputs",
+  "version": "2.0",
+  "created": "2025-11-06T10:00:00Z",
+  "updated": "2025-11-06T10:00:00Z",
+  
+  "inputs": [
+    {
+      "id": "user_prompt",
+      "type": "text_input",
+      "config": {
+        "label": "Prompt de génération",
+        "placeholder": "Décrivez l'image que vous souhaitez générer...",
+        "multiline": true,
+        "required": true
+      }
+    },
+    {
+      "id": "image_format", 
+      "type": "select_input",
+      "config": {
+        "label": "Format d'image",
+        "options": "1:1 - Carré\n16:9 - Paysage\n9:16 - Portrait",
+        "defaultValue": "1:1"
+      }
+    },
+    {
+      "id": "reference_image",
+      "type": "image_input", 
+      "config": {
+        "label": "Image de référence (optionnelle)",
+        "required": false
+      }
+    }
+  ],
+
+  "tasks": [
+    {
+      "id": "generate1",
+      "type": "generate_image",
+      "input": {
+        "prompt": "{{user_prompt.text}}",
+        "aspectRatio": "{{image_format.selected}}"
+      }
+    },
+    {
+      "id": "analyze1",
+      "type": "analyze_image",
+      "input": {
+        "image": "{{generate1.image}}",
+        "question": "Décris cette image générée en détail"
+      }
+    }
+  ],
+
+  "outputs": [
+    {
+      "id": "result_gallery",
+      "type": "gallery_output",
+      "config": {
+        "title": "Images générées",
+        "images": "{{generate1.image}}",
+        "columns": 2,
+        "imageSize": "medium",
+        "allowDownload": true
+      }
+    },
+    {
+      "id": "analysis_text",
+      "type": "text_output",
+      "config": {
+        "title": "Analyse de l'image",
+        "text": "{{analyze1.description}}",
+        "format": "markdown"
+      }
+    }
+  ],
+
+  "metadata": {
+    "tags": ["génération", "analyse"],
+    "category": "image",
+    "difficulty": "beginner",
+    "estimatedDuration": "2-5 minutes"
+  }
+}

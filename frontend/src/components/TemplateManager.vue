@@ -153,7 +153,20 @@
               <!-- Structure du workflow -->
               <q-card flat bordered>
                 <q-card-section>
-                  <div class="text-subtitle2 q-mb-sm">Structure du workflow</div>
+                  <div class="row items-center q-mb-sm">
+                    <div class="text-subtitle2">Structure du workflow</div>
+                    <q-space />
+                    <q-btn
+                      size="sm"
+                      flat
+                      icon="code"
+                      label="Voir JSON"
+                      @click="showJsonDialog = true"
+                      color="primary"
+                    >
+                      <q-tooltip>Voir la structure JSON complète</q-tooltip>
+                    </q-btn>
+                  </div>
                   <div class="workflow-preview">
                     <div
                       v-for="(task, index) in selectedTemplate.workflow.tasks"
@@ -242,6 +255,39 @@
       </q-card-section>
     </q-card>
   </q-dialog>
+
+  <!-- Dialog JSON du template -->
+  <q-dialog v-model="showJsonDialog" maximized>
+    <q-card class="json-dialog">
+      <q-card-section class="row items-center q-pa-md bg-primary text-white">
+        <div class="text-h6">
+          <q-icon name="code" class="q-mr-sm" />
+          Structure JSON - {{ selectedTemplate?.name }}
+        </div>
+        <q-space />
+        <q-btn
+          flat
+          icon="content_copy"
+          @click="copyJsonToClipboard"
+          class="q-mr-sm"
+        >
+          <q-tooltip>Copier dans le presse-papiers</q-tooltip>
+        </q-btn>
+        <q-btn
+          flat
+          round
+          icon="close"
+          @click="showJsonDialog = false"
+        />
+      </q-card-section>
+
+      <q-card-section class="q-pa-none" style="height: calc(100vh - 80px)">
+        <div class="json-container q-pa-md" style="height: 100%; overflow: auto;">
+          <pre class="json-content"><code>{{ formattedJson }}</code></pre>
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup>
@@ -272,6 +318,7 @@ const saving = ref(false)
 
 // Dialogs
 const showTemplateEditDialog = ref(false)
+const showJsonDialog = ref(false)
 const editingTemplate = ref(null)
 
 // Form
@@ -306,6 +353,11 @@ const iconOptions = [
 const showDialog = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
+})
+
+const formattedJson = computed(() => {
+  if (!selectedTemplate.value) return ''
+  return JSON.stringify(selectedTemplate.value, null, 2)
 })
 
 // Watcher pour recharger les templates quand le dialog s'ouvre
@@ -462,8 +514,25 @@ async function deleteTemplate(templateId) {
   }
 }
 
+async function copyJsonToClipboard() {
+  try {
+    await navigator.clipboard.writeText(formattedJson.value)
+    $q.notify({
+      type: 'positive',
+      message: 'Structure JSON copiée dans le presse-papiers',
+      timeout: 2000
+    })
+  } catch (error) {
+    console.error('Erreur lors de la copie:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Erreur lors de la copie dans le presse-papiers'
+    })
+  }
+}
+
 function formatDate(dateString) {
-  if (!dateString) return ''
+  if (!dateString) return 'Date inconnue'
   const date = new Date(dateString)
   return date.toLocaleDateString('fr-FR', {
     day: '2-digit',
@@ -507,6 +576,27 @@ onMounted(() => {
     .q-item {
       border-left: 3px solid var(--q-primary);
     }
+  }
+}
+
+.json-dialog {
+  .json-container {
+    background-color: #f8f9fa;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+  
+  .json-content {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #2d3748;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto;
   }
 }
 </style>

@@ -416,7 +416,7 @@ async function loadCollectionImages() {
   
   try {
     loadingCollection.value = true
-    const response = await api.get('/collections/current/gallery')
+    const response = await api.get('/api/collections/current/gallery')
     
     if (response.data.success) {
       // Convertir le format des images de collection vers le format attendu par le composant

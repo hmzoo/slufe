@@ -31,6 +31,10 @@ export class WorkflowRunner {
     
     // Tâches génériques (inputs utilisateur)
     this.taskServices.set('input_text', null);
+    this.taskServices.set('text_input', null); // Alias pour compatibilité frontend
+    this.taskServices.set('text_output', null); // Alias pour les outputs de texte  
+    this.taskServices.set('image_input', null); // Support pour les inputs d'image
+    this.taskServices.set('image_output', null); // Support pour les outputs d'image
     this.taskServices.set('input_images', null);
     this.taskServices.set('camera_capture', null);
   }
@@ -54,9 +58,38 @@ export class WorkflowRunner {
       // Validation du workflow
       this.validateWorkflow(workflow);
 
-      // Exécution séquentielle des tâches
-      for (const task of workflow.tasks) {
-        await this.executeTask(task, execution);
+      // Exécution séquentielle selon le format du workflow
+      if (workflow.inputs || workflow.outputs) {
+        // Format v2 avec sections séparées
+        
+        // 1. Exécuter les inputs
+        if (workflow.inputs && Array.isArray(workflow.inputs)) {
+          global.logWorkflow(`📥 Exécution des inputs (${workflow.inputs.length})`);
+          for (const inputTask of workflow.inputs) {
+            await this.executeTask(inputTask, execution);
+          }
+        }
+        
+        // 2. Exécuter les tâches principales
+        if (workflow.tasks && Array.isArray(workflow.tasks)) {
+          global.logWorkflow(`⚙️ Exécution des tâches (${workflow.tasks.length})`);
+          for (const task of workflow.tasks) {
+            await this.executeTask(task, execution);
+          }
+        }
+        
+        // 3. Exécuter les outputs
+        if (workflow.outputs && Array.isArray(workflow.outputs)) {
+          global.logWorkflow(`📤 Exécution des outputs (${workflow.outputs.length})`);
+          for (const outputTask of workflow.outputs) {
+            await this.executeTask(outputTask, execution);
+          }
+        }
+      } else {
+        // Format v1 classique - seulement tasks
+        for (const task of workflow.tasks) {
+          await this.executeTask(task, execution);
+        }
       }
 
       execution.markCompleted();
@@ -97,7 +130,34 @@ export class WorkflowRunner {
       });
 
       // Résolution des variables dans les entrées
-      const resolvedInputs = await this.resolveVariables(task.input || task.inputs, execution.getContext());
+      let taskInputs = task.input || task.inputs || {};
+      
+      // Pour les tâches d'input/output, inclure les champs spéciaux de la tâche
+      if (task.type === 'text_input' || task.type === 'input_text' || task.type === 'text_output') {
+        taskInputs = {
+          ...taskInputs,
+          label: task.label || task.id,
+          userInput: task.userInput || taskInputs.text, // Permet d'utiliser text résolu comme userInput
+          defaultValue: task.defaultValue,
+          placeholder: task.placeholder,
+          text: task.text || taskInputs.text, // Pour text_output
+          title: task.title,
+          format: task.format
+        };
+      } else if (task.type === 'image_input' || task.type === 'image_output') {
+        taskInputs = {
+          ...taskInputs,
+          label: task.label || task.id,
+          image: task.image || task.selectedImage || taskInputs.image,
+          selectedImage: task.selectedImage,
+          defaultImage: task.defaultImage,
+          title: task.title,
+          caption: task.caption,
+          width: task.width
+        };
+      }
+      
+      const resolvedInputs = await this.resolveVariables(taskInputs, execution.getContext());
 
       // Obtention du service pour ce type de tâche
       const service = await this.getServiceForTask(task.type);
@@ -361,6 +421,10 @@ export class WorkflowRunner {
       
       // Tâches génériques (inputs utilisateur)
       'input_text': './tasks/InputTextTask.js',
+      'text_input': './tasks/InputTextTask.js', // Alias pour compatibilité frontend
+      'text_output': './tasks/InputTextTask.js', // Alias pour les outputs de texte
+      'image_input': './tasks/InputImageTask.js', // Support pour les inputs d'image
+      'image_output': './tasks/ImageOutputTask.js', // Support pour les outputs d'image
       'input_images': './tasks/InputImagesTask.js',
       'camera_capture': './tasks/CameraCaptureTask.js'
     };
@@ -440,17 +504,46 @@ export class WorkflowRunner {
       throw new Error('Le workflow doit avoir un ID');
     }
 
-    if (!workflow.tasks || !Array.isArray(workflow.tasks)) {
-      throw new Error('Le workflow doit contenir un tableau de tâches');
+    // Vérifier le format du workflow
+    const hasV2Format = workflow.inputs || workflow.outputs;
+    
+    if (hasV2Format) {
+      // Format v2 - au moins une section doit exister et contenir des tâches
+      const totalTasks = (workflow.inputs?.length || 0) + 
+                        (workflow.tasks?.length || 0) + 
+                        (workflow.outputs?.length || 0);
+                        
+      if (totalTasks === 0) {
+        throw new Error('Le workflow doit contenir au moins une tâche dans inputs, tasks ou outputs');
+      }
+    } else {
+      // Format v1 classique
+      if (!workflow.tasks || !Array.isArray(workflow.tasks)) {
+        throw new Error('Le workflow doit contenir un tableau de tâches');
+      }
+
+      if (workflow.tasks.length === 0) {
+        throw new Error('Le workflow doit contenir au moins une tâche');
+      }
     }
 
-    if (workflow.tasks.length === 0) {
-      throw new Error('Le workflow doit contenir au moins une tâche');
+    // Validation des IDs uniques entre toutes les sections
+    const allTasks = [];
+    const taskIds = new Set();
+
+    // Collecter toutes les tâches des différentes sections
+    if (workflow.inputs) {
+      allTasks.push(...workflow.inputs);
+    }
+    if (workflow.tasks) {
+      allTasks.push(...workflow.tasks);
+    }
+    if (workflow.outputs) {
+      allTasks.push(...workflow.outputs);
     }
 
     // Validation des tâches individuelles
-    const taskIds = new Set();
-    for (const task of workflow.tasks) {
+    for (const task of allTasks) {
       if (!task.id) {
         throw new Error('Chaque tâche doit avoir un ID');
       }
@@ -470,7 +563,7 @@ export class WorkflowRunner {
     }
 
     // Validation des références entre tâches
-    this.validateTaskReferences(workflow.tasks);
+    this.validateTaskReferences(allTasks);
   }
 
   /**
@@ -581,13 +674,29 @@ class WorkflowExecution {
 
     // Résolution des outputs du workflow
     const outputs = {};
+    
     if (this.workflow.outputs) {
-      const context = this.getContext();
-      for (const [key, path] of Object.entries(this.workflow.outputs)) {
-        if (typeof path === 'string' && path.includes('{{')) {
-          outputs[key] = this.resolveStringVariables(path, context);
-        } else {
-          outputs[key] = path;
+      if (Array.isArray(this.workflow.outputs)) {
+        // Format v2 - outputs est un array de tâches
+        this.workflow.outputs.forEach((outputTask, index) => {
+          const taskResult = this.taskResults.get(outputTask.id);
+          if (taskResult && taskResult.status === 'completed') {
+            outputs[index] = {
+              id: outputTask.id,
+              type: outputTask.type,
+              result: taskResult.outputs
+            };
+          }
+        });
+      } else {
+        // Format v1 - outputs est un objet
+        const context = this.getContext();
+        for (const [key, path] of Object.entries(this.workflow.outputs)) {
+          if (typeof path === 'string' && path.includes('{{')) {
+            outputs[key] = this.resolveStringVariables(path, context);
+          } else {
+            outputs[key] = path;
+          }
         }
       }
     }

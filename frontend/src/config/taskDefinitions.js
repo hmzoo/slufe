@@ -3,6 +3,8 @@
  * Chaque tâche définit ses inputs requis et ses outputs produits
  */
 
+import { INPUT_DEFINITIONS, OUTPUT_DEFINITIONS } from './ioDefinitions.js'
+
 export const TASK_DEFINITIONS = {
   generate_image: {
     type: 'generate_image',
@@ -693,12 +695,29 @@ export const TASK_DEFINITIONS = {
         required: false,
         multiline: true,
         acceptsVariable: true
+      },
+      userInput: {
+        type: 'text',
+        label: 'Texte saisi (à l\'exécution)',
+        placeholder: 'Sera rempli par l\'utilisateur lors de l\'exécution',
+        required: false,
+        multiline: true,
+        acceptsVariable: false,
+        executionTime: true // Indique que ce champ est rempli lors de l'exécution
       }
     },
     outputs: {
       text: {
         type: 'text',
         description: 'Texte saisi par l\'utilisateur'
+      },
+      label: {
+        type: 'text',
+        description: 'Libellé du champ de saisie'
+      },
+      timestamp: {
+        type: 'text',
+        description: 'Horodatage de la saisie'
       }
     }
   },
@@ -823,6 +842,11 @@ export function getAvailableOutputs(taskId, taskType) {
  * Génère un ID unique pour une nouvelle tâche
  */
 export function generateTaskId(taskType, existingIds = []) {
+  if (!taskType || typeof taskType !== 'string') {
+    console.error('generateTaskId: taskType is required and must be a string', taskType);
+    return 'task1'; // fallback
+  }
+  
   const baseId = taskType.split('_')[0]; // "generate" from "generate_image"
   let counter = 1;
   let taskId = `${baseId}${counter}`;
@@ -833,4 +857,80 @@ export function generateTaskId(taskType, existingIds = []) {
   }
   
   return taskId;
+}
+
+// ==========================================
+// ORGANISATION PAR SECTIONS
+// ==========================================
+
+/**
+ * Définitions complètes incluant inputs, tasks et outputs
+ */
+export const ALL_DEFINITIONS = {
+  ...INPUT_DEFINITIONS,
+  ...TASK_DEFINITIONS,
+  ...OUTPUT_DEFINITIONS
+}
+
+/**
+ * Catégories de tâches pour l'interface
+ */
+export const TASK_CATEGORIES = {
+  input: {
+    name: 'Entrées',
+    icon: 'input',
+    color: 'blue',
+    description: 'Tâches de saisie et d\'upload'
+  },
+  processing: {
+    name: 'Traitement',
+    icon: 'settings',
+    color: 'orange',
+    description: 'Tâches de traitement et transformation'
+  },
+  output: {
+    name: 'Sorties',
+    icon: 'output',
+    color: 'green',
+    description: 'Tâches d\'affichage et de rendu'
+  }
+}
+
+/**
+ * Réorganise les tâches par section pour le nouveau builder
+ */
+export function getTasksBySection() {
+  return {
+    inputs: Object.values(INPUT_DEFINITIONS),
+    tasks: Object.values(TASK_DEFINITIONS),
+    outputs: Object.values(OUTPUT_DEFINITIONS)
+  }
+}
+
+/**
+ * Retourne la définition d'une tâche quelle que soit sa catégorie
+ */
+export function getDefinition(taskType) {
+  return ALL_DEFINITIONS[taskType] || null
+}
+
+/**
+ * Vérifie si une tâche est de type input
+ */
+export function isInputTask(taskType) {
+  return INPUT_DEFINITIONS.hasOwnProperty(taskType)
+}
+
+/**
+ * Vérifie si une tâche est de type output
+ */
+export function isOutputTask(taskType) {
+  return OUTPUT_DEFINITIONS.hasOwnProperty(taskType)
+}
+
+/**
+ * Vérifie si une tâche est de type processing
+ */
+export function isProcessingTask(taskType) {
+  return TASK_DEFINITIONS.hasOwnProperty(taskType)
 }

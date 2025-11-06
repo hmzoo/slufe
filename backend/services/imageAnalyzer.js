@@ -51,6 +51,14 @@ export async function analyzeImage(imageInput, customPrompt = null) {
       throw new Error('Image manquante');
     }
 
+    // Log du prompt dès le début pour debug
+    const prompt = customPrompt || "Give a detailed description of this image.";
+    console.log('🤖 Prompt qui sera envoyé au modèle LLaVA-13B:', {
+      prompt: prompt,
+      promptLength: prompt.length,
+      isCustom: !!customPrompt
+    });
+
     if (!process.env.REPLICATE_API_TOKEN) {
       throw new Error('REPLICATE_API_TOKEN non configuré');
     }
@@ -110,8 +118,6 @@ export async function analyzeImage(imageInput, customPrompt = null) {
     else {
       throw new Error(`Format d'image non supporté: ${typeof imageInput === 'string' ? imageInput.substring(0, 50) : typeof imageInput}`);
     }
-
-    const prompt = customPrompt || "Give a detailed description of this image.";
 
     // Appel au modèle LLaVA-13B via Replicate (avec version spécifique)
     console.log('⏱️  Timeout: 10 minutes maximum');

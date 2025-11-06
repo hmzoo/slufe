@@ -642,7 +642,7 @@ const showDialog = computed({
 async function loadCollections() {
   try {
     loading.value = true
-    const response = await api.get('/collections')
+    const response = await api.get('/api/collections')
     
     if (response.data.success) {
       collections.value = response.data.collections
@@ -661,7 +661,7 @@ async function loadCollections() {
 
 async function loadCurrentCollection() {
   try {
-    const response = await api.get('/collections/current/info')
+    const response = await api.get('/api/collections/current/info')
     
     if (response.data.success && response.data.currentCollection) {
       currentCollection.value = response.data.currentCollection
@@ -696,7 +696,7 @@ function selectCollection(collection) {
 
 async function setCurrentCollection(collectionId) {
   try {
-    const response = await api.post('/collections/current/set', { collectionId })
+    const response = await api.post('/api/collections/current/set', { collectionId })
     
     if (response.data.success) {
       currentCollection.value = response.data.currentCollection
@@ -739,10 +739,10 @@ async function saveCollection() {
     let response
     if (editingCollection.value) {
       // Mise à jour
-      response = await api.put(`/collections/${editingCollection.value.id}`, collectionForm.value)
+      response = await api.put(`/api/collections/${editingCollection.value.id}`, collectionForm.value)
     } else {
       // Création
-      response = await api.post('/collections', collectionForm.value)
+      response = await api.post('/api/collections', collectionForm.value)
     }
     
     if (response.data.success) {
