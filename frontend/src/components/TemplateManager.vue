@@ -1,5 +1,5 @@
 <template>
-  <div class="workflow-template-manager q-pa-md">
+  <div class="template-manager q-pa-md">
     <!-- Header -->
     <div class="row items-center q-mb-md">
       <div>
@@ -751,7 +751,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.workflow-template-manager {
+.template-manager {
   .template-card {
     transition: all 0.3s ease;
     

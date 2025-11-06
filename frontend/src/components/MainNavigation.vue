@@ -41,7 +41,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useCollectionStore } from 'src/stores/useCollectionStore'
 import WorkflowBuilder from './WorkflowBuilder.vue'
-import WorkflowTemplateManager from './WorkflowTemplateManager.vue' 
+import TemplateManager from './TemplateManager.vue' 
 import WorkflowManager from './WorkflowManager.vue'
 import CollectionView from './CollectionView.vue'
 
