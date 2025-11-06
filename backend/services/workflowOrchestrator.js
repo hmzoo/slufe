@@ -309,14 +309,24 @@ async function executeImageToVideoStep(step, input, prompt) {
   console.log(`  🖼️  Image source: ${imageToAnimate.substring(0, 100)}...`);
 
   // Préparer les paramètres pour la génération de vidéo
-  // Note: numFrames doit être entre 81 et 121, resolution doit être "480p" ou "720p"
+  // Accepter les deux nomenclatures (camelCase ET snake_case) pour compatibilité
   const videoParams = {
     prompt,
-    image: imageToAnimate, // generateVideoFromImage attend 'image'
-    aspectRatio: parameters.aspectRatio || '16:9',
-    numFrames: Math.max(81, Math.min(121, parameters.numFrames || 81)), // Clamp entre 81 et 121
-    resolution: parameters.resolution === 720 ? '720p' : '480p', // Convertir nombre en string
-    seed: parameters.seed || null
+    image: imageToAnimate,
+    last_image: parameters.last_image || parameters.lastImage,
+    num_frames: parameters.num_frames || parameters.numFrames || 81,
+    aspect_ratio: parameters.aspect_ratio || parameters.aspectRatio || '16:9',
+    resolution: parameters.resolution === 720 ? '720p' : (parameters.resolution || '480p'),
+    frames_per_second: parameters.frames_per_second || parameters.framesPerSecond,
+    interpolate_output: parameters.interpolate_output !== undefined ? parameters.interpolate_output : parameters.interpolateOutput,
+    go_fast: parameters.go_fast !== undefined ? parameters.go_fast : parameters.goFast,
+    sample_shift: parameters.sample_shift || parameters.sampleShift,
+    seed: parameters.seed || null,
+    disable_safety_checker: parameters.disable_safety_checker !== undefined ? parameters.disable_safety_checker : parameters.disableSafetyChecker,
+    lora_weights_transformer: parameters.lora_weights_transformer || parameters.loraWeightsTransformer,
+    lora_scale_transformer: parameters.lora_scale_transformer || parameters.loraScaleTransformer,
+    lora_weights_transformer2: parameters.lora_weights_transformer2 || parameters.loraWeightsTransformer2,
+    lora_scale_transformer2: parameters.lora_scale_transformer2 || parameters.loraScaleTransformer2
   };
 
   return await generateVideoFromImage(videoParams);

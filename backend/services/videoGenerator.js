@@ -103,22 +103,23 @@ export function validateVideoParams(params) {
  */
 export async function generateVideo(params) {
   try {
+    // Normaliser les paramètres (accepter camelCase ET snake_case)
     const {
       prompt,
-      optimizePrompt = VIDEO_DEFAULTS.optimizePrompt,
-      numFrames = VIDEO_DEFAULTS.numFrames,
-      aspectRatio = VIDEO_DEFAULTS.aspectRatio,
+      optimizePrompt = params.optimize_prompt || VIDEO_DEFAULTS.optimizePrompt,
+      numFrames = params.num_frames || VIDEO_DEFAULTS.numFrames,
+      aspectRatio = params.aspect_ratio || VIDEO_DEFAULTS.aspectRatio,
       resolution = VIDEO_DEFAULTS.resolution,
-      framesPerSecond = VIDEO_DEFAULTS.framesPerSecond,
-      interpolateOutput = VIDEO_DEFAULTS.interpolateOutput,
-      goFast = VIDEO_DEFAULTS.goFast,
-      sampleShift = VIDEO_DEFAULTS.sampleShift,
+      framesPerSecond = params.frames_per_second || VIDEO_DEFAULTS.framesPerSecond,
+      interpolateOutput = params.interpolate_output !== undefined ? params.interpolate_output : VIDEO_DEFAULTS.interpolateOutput,
+      goFast = params.go_fast !== undefined ? params.go_fast : VIDEO_DEFAULTS.goFast,
+      sampleShift = params.sample_shift || VIDEO_DEFAULTS.sampleShift,
       seed = null,
-      disableSafetyChecker = VIDEO_DEFAULTS.disableSafetyChecker,
-      loraWeightsTransformer = null,
-      loraScaleTransformer = 1,
-      loraWeightsTransformer2 = null,
-      loraScaleTransformer2 = 1
+      disableSafetyChecker = params.disable_safety_checker !== undefined ? params.disable_safety_checker : VIDEO_DEFAULTS.disableSafetyChecker,
+      loraWeightsTransformer = params.lora_weights_transformer || null,
+      loraScaleTransformer = params.lora_scale_transformer || 1,
+      loraWeightsTransformer2 = params.lora_weights_transformer2 || null,
+      loraScaleTransformer2 = params.lora_scale_transformer2 || 1
     } = params;
 
     // Validation

@@ -324,7 +324,7 @@ export const TASK_DEFINITIONS = {
         multiline: true,
         acceptsVariable: true
       },
-      numFrames: {
+      num_frames: {
         type: 'select',
         label: 'Nombre d\'images',
         required: false,
@@ -335,7 +335,7 @@ export const TASK_DEFINITIONS = {
         default: 81,
         acceptsVariable: false
       },
-      aspectRatio: {
+      aspect_ratio: {
         type: 'select',
         label: 'Format vidéo',
         required: false,
@@ -346,15 +346,19 @@ export const TASK_DEFINITIONS = {
         default: '16:9',
         acceptsVariable: false
       },
-      loraWeightsTransformer: {
+      lora_weights_transformer: {
         type: 'text',
         label: 'URL LoRA 1 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
         required: false,
         multiline: false,
-        acceptsVariable: true
+        acceptsVariable: true,
+        validation: {
+          pattern: /^https:\/\/replicate\.delivery\/pbxt\/.+$/,
+          message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
+        }
       },
-      loraScaleTransformer: {
+      lora_scale_transformer: {
         type: 'number',
         label: 'Poids LoRA 1',
         required: false,
@@ -364,15 +368,19 @@ export const TASK_DEFINITIONS = {
         default: 1.0,
         acceptsVariable: false
       },
-      loraWeightsTransformer2: {
+      lora_weights_transformer2: {
         type: 'text',
         label: 'URL LoRA 2 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
         required: false,
         multiline: false,
-        acceptsVariable: true
+        acceptsVariable: true,
+        validation: {
+          pattern: /^https:\/\/replicate\.delivery\/pbxt\/.+$/,
+          message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
+        }
       },
-      loraScaleTransformer2: {
+      lora_scale_transformer2: {
         type: 'number',
         label: 'Poids LoRA 2',
         required: false,
@@ -381,6 +389,91 @@ export const TASK_DEFINITIONS = {
         step: 0.1,
         default: 1.0,
         acceptsVariable: false
+      },
+      // Paramètres avancés (masqués par défaut)
+      resolution: {
+        type: 'select',
+        label: 'Résolution',
+        required: false,
+        hidden: true,
+        options: [
+          { label: '480p (rapide)', value: '480p' },
+          { label: '720p (qualité)', value: '720p' }
+        ],
+        default: '480p',
+        acceptsVariable: false,
+        hint: 'Résolution de sortie de la vidéo'
+      },
+      frames_per_second: {
+        type: 'number',
+        label: 'FPS',
+        required: false,
+        hidden: true,
+        min: 5,
+        max: 30,
+        default: 16,
+        acceptsVariable: false,
+        hint: 'Images par seconde (5-30, défaut: 16)'
+      },
+      interpolate_output: {
+        type: 'select',
+        label: 'Interpoler à 30 FPS',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Oui (plus fluide)', value: true },
+          { label: 'Non (original)', value: false }
+        ],
+        default: true,
+        acceptsVariable: false,
+        hint: 'Interpole les frames pour une vidéo plus fluide'
+      },
+      go_fast: {
+        type: 'select',
+        label: 'Mode rapide',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Activé (recommandé)', value: true },
+          { label: 'Désactivé', value: false }
+        ],
+        default: true,
+        acceptsVariable: false,
+        hint: 'Active le mode génération rapide'
+      },
+      sample_shift: {
+        type: 'number',
+        label: 'Intensité du mouvement',
+        required: false,
+        hidden: true,
+        min: 1,
+        max: 20,
+        default: 12,
+        acceptsVariable: false,
+        hint: '1-20, plus élevé = mouvement plus intense (défaut: 12)'
+      },
+      seed: {
+        type: 'number',
+        label: 'Seed (reproductibilité)',
+        required: false,
+        hidden: true,
+        min: 0,
+        max: 2147483647,
+        acceptsVariable: false,
+        hint: 'Laisser vide pour génération aléatoire'
+      },
+      disable_safety_checker: {
+        type: 'select',
+        label: 'Désactiver filtre contenu',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Non (recommandé)', value: false },
+          { label: 'Oui', value: true }
+        ],
+        default: false,
+        acceptsVariable: false,
+        hint: 'Désactive le filtre de sécurité du contenu'
       }
     },
     outputs: {
@@ -407,7 +500,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: true,
         multiple: false
       },
-      lastImage: {
+      last_image: {
         type: 'image',
         label: 'Image de fin (optionnel)',
         required: false,
@@ -423,7 +516,7 @@ export const TASK_DEFINITIONS = {
         multiline: true,
         acceptsVariable: true
       },
-      numFrames: {
+      num_frames: {
         type: 'select',
         label: 'Nombre d\'images',
         required: false,
@@ -434,7 +527,7 @@ export const TASK_DEFINITIONS = {
         default: 81,
         acceptsVariable: false
       },
-      aspectRatio: {
+      aspect_ratio: {
         type: 'select',
         label: 'Format vidéo',
         required: false,
@@ -445,15 +538,19 @@ export const TASK_DEFINITIONS = {
         default: '16:9',
         acceptsVariable: false
       },
-      loraWeightsTransformer: {
+      lora_weights_transformer: {
         type: 'text',
         label: 'URL LoRA 1 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
         required: false,
         multiline: false,
-        acceptsVariable: true
+        acceptsVariable: true,
+        validation: {
+          pattern: /^https:\/\/replicate\.delivery\/pbxt\/.+$/,
+          message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
+        }
       },
-      loraScaleTransformer: {
+      lora_scale_transformer: {
         type: 'number',
         label: 'Poids LoRA 1',
         required: false,
@@ -463,15 +560,19 @@ export const TASK_DEFINITIONS = {
         default: 1.0,
         acceptsVariable: false
       },
-      loraWeightsTransformer2: {
+      lora_weights_transformer2: {
         type: 'text',
         label: 'URL LoRA 2 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
         required: false,
         multiline: false,
-        acceptsVariable: true
+        acceptsVariable: true,
+        validation: {
+          pattern: /^https:\/\/replicate\.delivery\/pbxt\/.+$/,
+          message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
+        }
       },
-      loraScaleTransformer2: {
+      lora_scale_transformer2: {
         type: 'number',
         label: 'Poids LoRA 2',
         required: false,
@@ -480,6 +581,91 @@ export const TASK_DEFINITIONS = {
         step: 0.1,
         default: 1.0,
         acceptsVariable: false
+      },
+      // Paramètres avancés (masqués par défaut)
+      resolution: {
+        type: 'select',
+        label: 'Résolution',
+        required: false,
+        hidden: true,
+        options: [
+          { label: '480p (rapide)', value: '480p' },
+          { label: '720p (qualité)', value: '720p' }
+        ],
+        default: '480p',
+        acceptsVariable: false,
+        hint: 'Résolution de sortie de la vidéo'
+      },
+      frames_per_second: {
+        type: 'number',
+        label: 'FPS',
+        required: false,
+        hidden: true,
+        min: 5,
+        max: 30,
+        default: 16,
+        acceptsVariable: false,
+        hint: 'Images par seconde (5-30, défaut: 16)'
+      },
+      interpolate_output: {
+        type: 'select',
+        label: 'Interpoler à 30 FPS',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Oui (plus fluide)', value: true },
+          { label: 'Non (original)', value: false }
+        ],
+        default: true,
+        acceptsVariable: false,
+        hint: 'Interpole les frames pour une vidéo plus fluide'
+      },
+      go_fast: {
+        type: 'select',
+        label: 'Mode rapide',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Activé (recommandé)', value: true },
+          { label: 'Désactivé', value: false }
+        ],
+        default: true,
+        acceptsVariable: false,
+        hint: 'Active le mode génération rapide'
+      },
+      sample_shift: {
+        type: 'number',
+        label: 'Intensité du mouvement',
+        required: false,
+        hidden: true,
+        min: 1,
+        max: 20,
+        default: 12,
+        acceptsVariable: false,
+        hint: '1-20, plus élevé = mouvement plus intense (défaut: 12)'
+      },
+      seed: {
+        type: 'number',
+        label: 'Seed (reproductibilité)',
+        required: false,
+        hidden: true,
+        min: 0,
+        max: 2147483647,
+        acceptsVariable: false,
+        hint: 'Laisser vide pour génération aléatoire'
+      },
+      disable_safety_checker: {
+        type: 'select',
+        label: 'Désactiver filtre contenu',
+        required: false,
+        hidden: true,
+        options: [
+          { label: 'Non (recommandé)', value: false },
+          { label: 'Oui', value: true }
+        ],
+        default: false,
+        acceptsVariable: false,
+        hint: 'Désactive le filtre de sécurité du contenu'
       }
     },
     outputs: {
