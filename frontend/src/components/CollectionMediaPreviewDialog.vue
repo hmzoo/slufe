@@ -154,7 +154,7 @@
 
     <!-- Dialog d'informations détaillées -->
     <q-dialog v-model="showInfoDialog">
-      <MediaInfoDialog :media="media" @close="showInfoDialog = false" />
+      <CollectionMediaInfoDialog :media="media" @close="showInfoDialog = false" />
     </q-dialog>
   </q-card>
 </template>
@@ -162,7 +162,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import MediaInfoDialog from './MediaInfoDialog.vue'
+import CollectionMediaInfoDialog from './CollectionMediaInfoDialog.vue'
 
 // Props
 const props = defineProps({

@@ -94,7 +94,7 @@
     <q-dialog v-model="showGallery" maximized>
       <q-card>
         <q-card-section class="q-pa-md">
-          <SimpleMediaGallery
+          <CollectionMediaGallery
             v-model="gallerySelection"
             :multiple="multiple"
             :accept="acceptTypes"
@@ -108,7 +108,7 @@
 
     <!-- Dialog Upload -->
     <q-dialog v-model="showUploadDialog">
-      <MediaUploadDialog
+      <CollectionMediaUploadDialog
         :accept="acceptTypes"
         :multiple="true"
         @uploaded="onUploadComplete"
@@ -118,7 +118,7 @@
 
     <!-- Dialog Preview -->
     <q-dialog v-model="showPreviewDialog" maximized>
-      <MediaPreviewDialog
+      <CollectionMediaPreviewDialog
         :media="selectedMedia"
         @close="showPreviewDialog = false"
       />
@@ -133,9 +133,9 @@ import { ref, computed, watch } from 'vue'
 import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import SimpleMediaGallery from './SimpleMediaGallery.vue'
-import MediaUploadDialog from './MediaUploadDialog.vue'
-import MediaPreviewDialog from './MediaPreviewDialog.vue'
+import CollectionMediaGallery from './CollectionMediaGallery.vue'
+import CollectionMediaUploadDialog from './CollectionMediaUploadDialog.vue'
+import CollectionMediaPreviewDialog from './CollectionMediaPreviewDialog.vue'
 
 // Props
 const props = defineProps({

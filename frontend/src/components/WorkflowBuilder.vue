@@ -1081,9 +1081,9 @@ const selectImageFromCollection = (inputKey) => {
         return
     }
     
-    // Utiliser MediaSelector (module collection) pour sélectionner une image
+    // Utiliser CollectionMediaSelector (module collection) pour sélectionner une image
     $q.dialog({
-        component: defineAsyncComponent(() => import('./MediaSelector.vue')),
+        component: defineAsyncComponent(() => import('./CollectionMediaSelector.vue')),
         componentProps: {
             modelValue: taskForm.value[inputKey] || null,
             label: 'Sélectionner une image',
