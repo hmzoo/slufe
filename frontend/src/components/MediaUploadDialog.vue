@@ -130,7 +130,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { uploadMediaService } from 'src/services/uploadMedia'
 import { useQuasar } from 'quasar'
 
@@ -158,7 +158,7 @@ const props = defineProps({
 const emit = defineEmits(['uploaded', 'close'])
 
 // Stores
-const mediaStore = useMediaStore()
+const collectionStore = useCollectionStore()
 const $q = useQuasar()
 
 // État local
@@ -281,14 +281,14 @@ async function startUpload() {
       uploadStatus.value = `Upload de ${validFiles.length} fichiers...`
       
       // Upload multiple via le store
-      const result = await mediaStore.uploadMultiple(validFiles)
+      const result = await collectionStore.uploadMultiple(validFiles)
       uploadedMedias = result.uploaded || result
       
     } else if (validFiles.length === 1) {
       uploadStatus.value = 'Upload en cours...'
       
       // Upload simple via le store  
-      const media = await mediaStore.uploadSingle(validFiles[0])
+      const media = await collectionStore.uploadSingle(validFiles[0])
       uploadedMedias = [media]
     }
     
