@@ -114,6 +114,13 @@
                       <q-item-section>Exporter</q-item-section>
                     </q-item>
                     
+                    <q-item clickable @click="saveAsTemplate(workflow)" class="text-secondary">
+                      <q-item-section avatar>
+                        <q-icon name="dashboard" />
+                      </q-item-section>
+                      <q-item-section>Sauvegarder comme template</q-item-section>
+                    </q-item>
+                    
                     <q-separator />
                     
                     <q-item clickable @click="deleteWorkflow(workflow)" class="text-negative">
@@ -318,12 +325,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useWorkflowStore } from 'src/stores/useWorkflowStore'
+import { useTemplateStore } from 'src/stores/useTemplateStore'
 
 // Emits pour communiquer avec le composant parent
 const emit = defineEmits(['open-builder', 'load-workflow'])
 
 // Stores et composables
 const workflowStore = useWorkflowStore()
+const templateStore = useTemplateStore()
 const $q = useQuasar()
 
 // Reactive variables
@@ -489,6 +498,64 @@ const exportWorkflow = (workflow) => {
       position: 'top'
     })
   }
+}
+
+const saveAsTemplate = async (workflow) => {
+  // Dialog pour demander les informations du template
+  $q.dialog({
+    title: 'Sauvegarder comme template',
+    message: 'Créer un template réutilisable à partir de ce workflow',
+    prompt: {
+      model: workflow.name + ' (Template)',
+      isValid: val => val && val.length > 0,
+      type: 'text',
+      label: 'Nom du template *'
+    },
+    options: {
+      type: 'checkbox',
+      model: [],
+      items: [
+        { label: 'Template personnalisé', value: 'custom' },
+        { label: 'Template d\'image', value: 'image' },
+        { label: 'Template de vidéo', value: 'video' }
+      ]
+    },
+    cancel: true,
+    persistent: false
+  }).onOk(async (data) => {
+    try {
+      const { prompt, options } = typeof data === 'string' ? { prompt: data, options: [] } : data
+      
+      // Créer le template à partir du workflow
+      const templateData = {
+        name: prompt || (workflow.name + ' (Template)'),
+        description: workflow.description || '',
+        category: options.length > 0 ? options[0] : 'custom',
+        icon: 'dashboard',
+        workflow: workflow,
+        originalWorkflowId: workflow.id,
+        tags: []
+      }
+      
+      await templateStore.createTemplate(templateData)
+      
+      $q.notify({
+        type: 'positive',
+        message: `Template "${templateData.name}" créé avec succès`,
+        caption: 'Les inputs et outputs ont été vidés pour réutilisation',
+        position: 'top',
+        timeout: 3000
+      })
+    } catch (error) {
+      console.error('Erreur création template:', error)
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors de la création du template',
+        caption: error.message,
+        position: 'top'
+      })
+    }
+  })
 }
 
 const deleteWorkflow = (workflow) => {
