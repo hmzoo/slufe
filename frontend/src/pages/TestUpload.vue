@@ -11,22 +11,22 @@
             <div class="row q-gutter-md">
               <div class="col-auto">
                 <q-chip color="primary" text-color="white">
-                  {{ mediaStore.totalCount }} médias
+                  {{ collectionStore.totalCount }} médias
                 </q-chip>
               </div>
               <div class="col-auto">
                 <q-chip color="secondary" text-color="white">
-                  {{ mediaStore.images.length }} images
+                  {{ collectionStore.images.length }} images
                 </q-chip>
               </div>
               <div class="col-auto">
                 <q-chip color="accent" text-color="white">
-                  {{ mediaStore.videos.length }} vidéos
+                  {{ collectionStore.videos.length }} vidéos
                 </q-chip>
               </div>
               <div class="col-auto">
                 <q-chip color="warning" text-color="white">
-                  {{ mediaStore.formatFileSize(mediaStore.totalSize) }}
+                  {{ collectionStore.formatFileSize(collectionStore.totalSize) }}
                 </q-chip>
               </div>
             </div>
@@ -36,7 +36,7 @@
                 label="Charger médias du serveur"
                 icon="refresh"
                 @click="loadAllMedias"
-                :loading="mediaStore.loading"
+                :loading="collectionStore.sessionLoading"
                 color="primary"
                 class="q-mr-sm"
               />
@@ -284,13 +284,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { uploadMediaService } from 'src/services/uploadMedia'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { Notify } from 'quasar'
 import MediaSelector from 'src/components/MediaSelector.vue'
 import SimpleMediaGallery from 'src/components/SimpleMediaGallery.vue'
 
 // Store
-const mediaStore = useMediaStore()
+const collectionStore = useCollectionStore()
 
 // États réactifs
 const singleFile = ref(null)
@@ -466,10 +466,10 @@ const deleteMedia = async (mediaId) => {
 // Méthodes pour le store de médias
 const loadAllMedias = async () => {
   try {
-    await mediaStore.loadAllMedias()
+    await collectionStore.loadAllMedias()
     Notify.create({
       type: 'positive',
-      message: `${mediaStore.totalCount} médias chargés dans le store`
+      message: `${collectionStore.totalCount} médias chargés dans le store`
     })
   } catch (error) {
     Notify.create({
@@ -480,7 +480,7 @@ const loadAllMedias = async () => {
 }
 
 const clearMediaStore = () => {
-  mediaStore.clearStore()
+  collectionStore.clearSession()
   selectedSingle.value = null
   selectedMultiple.value = []
   
@@ -530,7 +530,7 @@ onMounted(async () => {
   await loadMediaList()
   
   // Charger dans le store si vide
-  if (mediaStore.totalCount === 0) {
+  if (collectionStore.totalCount === 0) {
     await loadAllMedias()
   }
 })
