@@ -571,6 +571,78 @@
                             </div>
                         </div>
 
+                        <!-- Input video (sélection depuis les collections) -->
+                        <div v-else-if="inputDef.type === 'video'">
+                            <q-input
+                                :model-value="getVideoInputDisplayValue(taskForm[inputKey])"
+                                :label="inputDef.label"
+                                :hint="inputDef.hint || 'Sélectionnez ou ajoutez une vidéo'"
+                                readonly
+                                outlined
+                                dense
+                            >
+                                <template v-slot:prepend v-if="inputDef.acceptsVariable !== false">
+                                    <q-btn
+                                        dense
+                                        flat
+                                        icon="code"
+                                        color="primary"
+                                        @click="showVariableSelector(editingTask.id, inputKey)"
+                                        size="sm"
+                                    >
+                                        <q-tooltip>Sélectionner une variable</q-tooltip>
+                                    </q-btn>
+                                </template>
+                                
+                                <template v-slot:append>
+                                    <q-btn-group>
+                                        <q-btn
+                                            icon="video_library"
+                                            flat
+                                            dense
+                                            @click="selectVideoFromCollection(inputKey)"
+                                            title="Choisir une vidéo existante"
+                                        />
+                                        <q-btn
+                                            icon="add_to_photos"
+                                            flat
+                                            dense
+                                            @click="uploadVideoForInput(inputKey)"
+                                            title="Ajouter une nouvelle vidéo"
+                                        />
+                                        <q-btn
+                                            v-if="taskForm[inputKey]"
+                                            icon="clear"
+                                            flat
+                                            dense
+                                            @click="taskForm[inputKey] = ''"
+                                            title="Supprimer la sélection"
+                                        />
+                                    </q-btn-group>
+                                </template>
+                            </q-input>
+                            
+                            <!-- Preview de la vidéo sélectionnée -->
+                            <div v-if="taskForm[inputKey]" class="q-mt-sm">
+                                <!-- Aperçu pour une URL normale -->
+                                <video
+                                    v-if="!taskForm[inputKey].startsWith('{{')"
+                                    :src="taskForm[inputKey]"
+                                    controls
+                                    style="max-width: 300px; max-height: 200px"
+                                    class="rounded-borders"
+                                >
+                                    Votre navigateur ne supporte pas la balise vidéo.
+                                </video>
+                                <!-- Indicateur pour une variable -->
+                                <div v-else class="variable-indicator q-pa-md text-center">
+                                    <q-icon name="code" size="2rem" color="primary" />
+                                    <div class="text-body2 q-mt-xs">Variable utilisée</div>
+                                    <div class="text-caption text-grey-6">{{ taskForm[inputKey] }}</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Autres types d'inputs peuvent être ajoutés ici -->
                     </div>
                 </div>
@@ -1172,6 +1244,139 @@ const uploadImageForInput = (inputKey) => {
             $q.notify({
                 type: 'negative',
                 message: 'Erreur lors de l\'upload de l\'image',
+                position: 'top'
+            })
+        } finally {
+            $q.loading.hide()
+            document.body.removeChild(fileInput)
+        }
+    }
+    
+    // Ajouter temporairement à la page et cliquer
+    document.body.appendChild(fileInput)
+    fileInput.click()
+}
+
+// Fonctions pour les inputs de vidéo
+const getVideoInputDisplayValue = (videoUrl) => {
+    if (!videoUrl) return 'Aucune vidéo sélectionnée'
+    
+    // Vérifier si c'est une variable (commence et finit par {{ }})
+    if (videoUrl.startsWith('{{') && videoUrl.endsWith('}}')) {
+        return `Variable: ${videoUrl}`
+    }
+    
+    // Essayer de trouver le média dans la collection pour afficher son nom
+    const media = collectionStore.currentCollectionMedias?.find(m => m.url === videoUrl)
+    if (media) {
+        return media.description || `Vidéo ${media.mediaId.slice(0, 8)}...`
+    }
+    
+    // Sinon, extraire le nom du fichier de l'URL
+    return videoUrl.split('/').pop() || 'Vidéo sélectionnée'
+}
+
+const selectVideoFromCollection = (inputKey) => {
+    if (!collectionStore.currentCollectionMedias || collectionStore.currentCollectionMedias.length === 0) {
+        $q.notify({
+            type: 'warning',
+            message: 'Aucune vidéo disponible dans la collection actuelle',
+            position: 'top'
+        })
+        return
+    }
+    
+    // Utiliser CollectionMediaSelector (module collection) pour sélectionner une vidéo
+    $q.dialog({
+        component: defineAsyncComponent(() => import('./CollectionMediaSelector.vue')),
+        componentProps: {
+            modelValue: taskForm.value[inputKey] || null,
+            label: 'Sélectionner une vidéo',
+            accept: ['video'],
+            multiple: false,
+            hidePreview: true
+        }
+    }).onOk(selectedUrl => {
+        if (selectedUrl) {
+            taskForm.value[inputKey] = selectedUrl
+            
+            // Trouver le média sélectionné pour afficher son nom
+            const selectedMedia = collectionStore.currentCollectionMedias.find(m => m.url === selectedUrl)
+            
+            $q.notify({
+                type: 'positive',
+                message: `Vidéo "${selectedMedia?.description || selectedMedia?.originalName || 'sélectionnée'}" choisie`,
+                position: 'top'
+            })
+        }
+    })
+}
+
+const uploadVideoForInput = (inputKey) => {
+    // Créer un input file temporaire
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'video/*'
+    fileInput.style.display = 'none'
+    
+    fileInput.onchange = async (event) => {
+        const file = event.target.files[0]
+        if (!file) return
+        
+        try {
+            $q.loading.show({
+                message: 'Upload de la vidéo en cours...'
+            })
+            
+            // Vérifier qu'une collection est sélectionnée
+            if (!collectionStore.currentCollection) {
+                $q.notify({
+                    type: 'warning',
+                    message: 'Veuillez sélectionner une collection avant d\'uploader',
+                    position: 'top'
+                })
+                return
+            }
+            
+            // Créer un FormData pour l'upload
+            const formData = new FormData()
+            formData.append('files', file)
+            formData.append('description', file.name)
+            
+            // Uploader la vidéo via l'API
+            const uploadUrl = `/collections/${collectionStore.currentCollection.id}/upload`
+            const response = await api.post(uploadUrl, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            })
+            
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'Erreur lors de l\'upload')
+            }
+            
+            const result = response.data
+            
+            // Actualiser les médias de la collection
+            await collectionStore.loadCollectionMedias(collectionStore.currentCollection.id)
+            
+            // Utiliser l'URL de la vidéo uploadée (premier résultat)
+            const uploadedMedia = result.results?.[0]
+            if (uploadedMedia) {
+                taskForm.value[inputKey] = uploadedMedia.url
+            }
+            
+            $q.notify({
+                type: 'positive',
+                message: 'Vidéo uploadée et sélectionnée avec succès',
+                position: 'top'
+            })
+            
+        } catch (error) {
+            console.error('Erreur upload:', error)
+            $q.notify({
+                type: 'negative',
+                message: 'Erreur lors de l\'upload de la vidéo',
                 position: 'top'
             })
         } finally {
