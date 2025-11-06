@@ -170,8 +170,17 @@
             <q-btn
               flat
               dense
-              icon="play_arrow"
+              icon="add_circle"
               color="primary"
+              @click.stop="createWorkflowFromTemplate(template)"
+            >
+              <q-tooltip>Créer un nouveau workflow</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              icon="play_arrow"
+              color="secondary"
               @click.stop="loadTemplateInBuilder(template)"
             >
               <q-tooltip>Charger dans le builder</q-tooltip>
@@ -180,10 +189,10 @@
               flat
               dense
               icon="content_copy"
-              color="secondary"
+              color="grey-7"
               @click.stop="duplicateTemplate(template)"
             >
-              <q-tooltip>Dupliquer</q-tooltip>
+              <q-tooltip>Dupliquer template</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -292,9 +301,16 @@
             </div>
           </div>
 
-          <div class="row q-mt-md">
+          <div class="row q-mt-md q-gutter-sm">
             <q-btn
               color="primary"
+              icon="add_circle"
+              label="Créer un workflow"
+              @click="createWorkflowFromTemplate(selectedTemplate); showDetailsDialog = false"
+              unelevated
+            />
+            <q-btn
+              color="secondary"
               icon="code"
               label="Voir JSON"
               @click="showJsonDialog = true"
@@ -537,6 +553,70 @@ function loadTemplateInBuilder(template) {
     position: 'top'
   })
 }
+
+function createWorkflowFromTemplate(template) {
+  // Créer un dialog pour nommer le nouveau workflow
+  $q.dialog({
+    title: 'Créer un workflow depuis le template',
+    message: 'Donnez un nom au nouveau workflow',
+    prompt: {
+      model: template.name,
+      type: 'text',
+      label: 'Nom du workflow *',
+      filled: true
+    },
+    cancel: true,
+    persistent: false
+  }).onOk(async (workflowName) => {
+    if (!workflowName || !workflowName.trim()) {
+      $q.notify({
+        type: 'warning',
+        message: 'Le nom du workflow est requis'
+      })
+      return
+    }
+
+    try {
+      // Créer une copie profonde du workflow template
+      const newWorkflow = JSON.parse(JSON.stringify(template.workflow))
+      
+      // Définir le nouveau nom et générer un nouvel ID
+      newWorkflow.name = workflowName.trim()
+      newWorkflow.id = `workflow_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+      newWorkflow.createdAt = new Date().toISOString()
+      newWorkflow.updatedAt = new Date().toISOString()
+      
+      // Ajouter métadonnées template
+      newWorkflow.fromTemplate = {
+        templateId: template.id,
+        templateName: template.name,
+        createdFrom: new Date().toISOString()
+      }
+      
+      // Charger le workflow dans le builder
+      workflowStore.loadTemplate(newWorkflow)
+      
+      // Sauvegarder automatiquement le nouveau workflow
+      await workflowStore.saveCurrentWorkflow()
+      
+      $q.notify({
+        type: 'positive',
+        message: `Workflow "${workflowName}" créé depuis le template`,
+        caption: 'Vous pouvez maintenant remplir les inputs et exécuter le workflow',
+        position: 'top',
+        timeout: 3000
+      })
+    } catch (error) {
+      console.error('Erreur création workflow depuis template:', error)
+      $q.notify({
+        type: 'negative',
+        message: 'Erreur lors de la création du workflow',
+        caption: error.message
+      })
+    }
+  })
+}
+
 
 async function duplicateTemplate(template) {
   try {

@@ -794,6 +794,63 @@ export const useWorkflowStore = defineStore('workflow', () => {
     return templateLike
   }
 
+  // Charger un template de workflow dans le builder
+  function loadTemplate(templateWorkflow) {
+    try {
+      // Créer une copie profonde pour éviter les mutations
+      const workflowCopy = JSON.parse(JSON.stringify(templateWorkflow))
+      
+      console.log('📥 Chargement template dans builder:', workflowCopy.name || 'Sans nom')
+      
+      // Définir comme workflow actuel dans le builder
+      currentWorkflow.value = workflowCopy
+      persistCurrentWorkflow()
+      
+      return workflowCopy
+    } catch (error) {
+      console.error('❌ Erreur chargement template:', error)
+      throw error
+    }
+  }
+
+  // Sauvegarder le workflow actuel dans la liste des workflows sauvegardés
+  async function saveCurrentWorkflow() {
+    try {
+      if (!currentWorkflow.value) {
+        throw new Error('Aucun workflow actuel à sauvegarder')
+      }
+
+      const workflow = currentWorkflow.value
+      
+      // Vérifier si c'est une mise à jour ou une nouvelle sauvegarde
+      const existingIndex = savedWorkflows.value.findIndex(w => w.id === workflow.id)
+      
+      if (existingIndex >= 0) {
+        // Mise à jour d'un workflow existant
+        workflow.updatedAt = new Date().toISOString()
+        savedWorkflows.value[existingIndex] = workflow
+        console.log('✅ Workflow mis à jour:', workflow.name)
+      } else {
+        // Nouveau workflow
+        if (!workflow.createdAt) {
+          workflow.createdAt = new Date().toISOString()
+        }
+        workflow.updatedAt = new Date().toISOString()
+        savedWorkflows.value.push(workflow)
+        console.log('✅ Nouveau workflow sauvegardé:', workflow.name)
+      }
+      
+      // Persister dans localStorage
+      persistSavedWorkflows()
+      
+      return workflow
+    } catch (error) {
+      console.error('❌ Erreur sauvegarde workflow actuel:', error)
+      throw error
+    }
+  }
+
+
   // Migration des anciens workflows depuis 'customWorkflows'
   function migrateLegacyWorkflows() {
     try {
@@ -859,6 +916,8 @@ export const useWorkflowStore = defineStore('workflow', () => {
     getTemplateById,
     exportWorkflow,
     importWorkflow,
+    loadTemplate,
+    saveCurrentWorkflow,
     persistSavedWorkflows,
     persistCurrentWorkflow,
     setCurrentBuilderWorkflow,
