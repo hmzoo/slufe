@@ -15,7 +15,7 @@
               {{ collectionImages.length }} images • Collection courante
             </span>
             <span v-else>
-              {{ mediaStore.totalCount }} médias • {{ mediaStore.formatFileSize(mediaStore.totalSize) }}
+              {{ collectionStore.totalCount }} médias • {{ collectionStore.formatFileSize(collectionStore.totalSize) }}
             </span>
           </div>
         </div>
@@ -25,7 +25,7 @@
               dense 
               icon="refresh" 
               @click="refreshMedias"
-              :loading="useCollections ? loadingCollection : mediaStore.loading"
+              :loading="useCollections ? loadingCollection : collectionStore.sessionLoading"
               title="Actualiser"
             />
             <q-btn 
@@ -57,9 +57,9 @@
         align="justify"
         narrow-indicator
       >
-        <q-tab name="all" label="Tous" :badge="mediaStore.totalCount" />
-        <q-tab name="images" label="Images" :badge="mediaStore.images.length" />
-        <q-tab name="videos" label="Vidéos" :badge="mediaStore.videos.length" />
+        <q-tab name="all" label="Tous" :badge="collectionStore.totalCount" />
+        <q-tab name="images" label="Images" :badge="collectionStore.images.length" />
+        <q-tab name="videos" label="Vidéos" :badge="collectionStore.videos.length" />
         <q-tab name="recent" label="Récents" />
         <q-tab name="used" label="Utilisés" />
       </q-tabs>
@@ -102,7 +102,7 @@
                 {{ truncateName(media.originalName || media.filename) }}
               </div>
               <div class="media-size text-caption text-grey-4">
-                {{ mediaStore.formatFileSize(media.size) }}
+                {{ collectionStore.formatFileSize(media.size) }}
               </div>
             </div>
             
@@ -228,7 +228,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useMediaStore } from 'src/stores/useMediaStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 
@@ -271,7 +271,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'selected', 'uploaded'])
 
 // Stores et utilitaires
-const mediaStore = useMediaStore()
+const collectionStore = useCollectionStore()
 const $q = useQuasar()
 
 // État local
@@ -294,25 +294,25 @@ const loadingCollection = ref(false)
 const filteredMedias = computed(() => {
   let medias = []
   
-  // Utiliser les collections si activé, sinon utiliser mediaStore
+  // Utiliser les collections si activé, sinon utiliser collectionStore
   if (props.useCollections) {
     medias = collectionImages.value
   } else {
     switch (activeFilter.value) {
       case 'images':
-        medias = mediaStore.images
+        medias = collectionStore.images
         break
       case 'videos':
-        medias = mediaStore.videos
+        medias = collectionStore.videos
         break
       case 'recent':
-        medias = mediaStore.getRecent(20)
+        medias = collectionStore.getRecent(20)
         break
       case 'used':
-        medias = mediaStore.getMostUsed(20)
+        medias = collectionStore.getMostUsed(20)
         break
       default:
-        medias = mediaStore.allMedias
+        medias = collectionStore.allMedias
     }
   }
   
@@ -368,7 +368,7 @@ function clearSelection() {
 }
 
 function confirmSelection() {
-  const selectedMediaObjects = selectedMedias.value.map(id => mediaStore.useMedia(id))
+  const selectedMediaObjects = selectedMedias.value.map(id => collectionStore.useMedia(id))
   emit('selected', selectedMediaObjects)
   
   // Notification
@@ -395,7 +395,7 @@ async function refreshMedias() {
         timeout: 1500
       })
     } else {
-      await mediaStore.loadAllMedias()
+      await collectionStore.loadAllMedias()
       $q.notify({
         type: 'positive',
         message: 'Médias actualisés',
@@ -454,7 +454,7 @@ async function deleteMedia(media) {
       persistent: true
     })
     
-    await mediaStore.deleteMedia(media.id)
+    await collectionStore.deleteMedia(media.id)
     
     // Retirer de la sélection si nécessaire
     const index = selectedMedias.value.indexOf(media.id)
@@ -534,7 +534,7 @@ function getEmptyMessage() {
 onMounted(async () => {
   if (props.useCollections) {
     await loadCollectionImages()
-  } else if (mediaStore.totalCount === 0) {
+  } else if (collectionStore.totalCount === 0) {
     await refreshMedias()
   }
 })
