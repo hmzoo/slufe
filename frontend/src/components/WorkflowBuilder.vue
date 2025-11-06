@@ -667,7 +667,7 @@ import {
 import { INPUT_DEFINITIONS, OUTPUT_DEFINITIONS } from 'src/config/ioDefinitions'
 import { migrateWorkflowToV2, validateWorkflowV2 } from 'src/utils/workflowMigration'
 import draggable from 'vuedraggable'
-import TaskCard from './TaskCard.vue'
+import TaskCard from './WorkflowTaskCard.vue'
 
 // Stores et composables
 const workflowStore = useWorkflowStore()
