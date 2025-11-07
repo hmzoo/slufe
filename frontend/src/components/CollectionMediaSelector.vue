@@ -11,6 +11,10 @@
       filled
       class="media-input"
     >
+      <template v-if="$slots.prepend" #prepend>
+        <slot name="prepend"></slot>
+      </template>
+      
       <template #append>
         <q-btn-group>
           <q-btn
@@ -185,7 +189,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'selected', 'uploaded', 'cleared'])
 
 // Stores
-const mediaStore = useCollectionStore()
+const collectionStore = useCollectionStore()
 const $q = useQuasar()
 
 // État local
@@ -397,11 +401,13 @@ function onGallerySelection(selectedMedias) {
   showGallery.value = false
   
   if (props.multiple) {
-    const ids = selectedMedias.map(media => media.id)
-    emit('update:modelValue', ids)
+    // Pour le mode multiple, émettre un tableau d'URLs
+    const urls = selectedMedias.map(media => media.url)
+    emit('update:modelValue', urls)
   } else {
-    const id = selectedMedias.length > 0 ? selectedMedias[0].id : null
-    emit('update:modelValue', id)
+    // Pour le mode single, émettre l'URL de la première sélection
+    const url = selectedMedias.length > 0 ? selectedMedias[0].url : null
+    emit('update:modelValue', url)
   }
   
   emit('selected', selectedMedias)
@@ -411,14 +417,16 @@ function onUploadComplete(uploadedMedias) {
   showUploadDialog.value = false
   
   if (props.multiple) {
-    const uploadedIds = uploadedMedias.map(media => media.id)
-    const currentIds = Array.isArray(props.modelValue) ? props.modelValue : []
-    const newIds = [...currentIds, ...uploadedIds]
+    // Pour le mode multiple, ajouter les URLs des nouveaux médias
+    const uploadedUrls = uploadedMedias.map(media => media.url)
+    const currentUrls = Array.isArray(props.modelValue) ? props.modelValue : []
+    const newUrls = [...currentUrls, ...uploadedUrls]
     
-    emit('update:modelValue', newIds)
+    emit('update:modelValue', newUrls)
   } else {
-    const id = uploadedMedias.length > 0 ? uploadedMedias[0].id : null
-    emit('update:modelValue', id)
+    // Pour le mode single, émettre l'URL du premier média uploadé
+    const url = uploadedMedias.length > 0 ? uploadedMedias[0].url : null
+    emit('update:modelValue', url)
   }
   
   emit('uploaded', uploadedMedias)

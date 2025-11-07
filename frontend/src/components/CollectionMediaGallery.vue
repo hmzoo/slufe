@@ -52,9 +52,9 @@
     <div v-if="displayedMedias.length > 0" class="media-grid">
       <div 
         v-for="media in displayedMedias" 
-        :key="media.id"
+        :key="media.url"
         class="media-item"
-        :class="{ 'selected': isSelected(media.id) }"
+        :class="{ 'selected': isSelected(media.url) }"
         @click="toggleSelection(media)"
       >
         <!-- Preview du média -->
@@ -103,17 +103,17 @@
               class="q-ma-xs"
             />
             <q-btn 
-              :icon="isSelected(media.id) ? 'check_circle' : 'add_circle'"
+              :icon="isSelected(media.url) ? 'check_circle' : 'add_circle'"
               round
               size="sm"
-              :color="isSelected(media.id) ? 'positive' : 'primary'"
+              :color="isSelected(media.url) ? 'positive' : 'primary'"
               @click.stop="toggleSelection(media)"
               class="q-ma-xs"
             />
           </div>
 
           <!-- Badge de sélection -->
-          <div v-if="isSelected(media.id)" class="selection-badge">
+          <div v-if="isSelected(media.url)" class="selection-badge">
             <q-icon name="check_circle" color="positive" />
           </div>
         </div>
@@ -312,7 +312,7 @@
           <div class="row justify-center q-gutter-xs">
             <div 
               v-for="(media, index) in displayedMedias"
-              :key="media.id"
+              :key="media.url"
               class="thumbnail-item"
               :class="{ 'active': index === currentImageIndex }"
               @click="goToImage(index)"
@@ -375,10 +375,12 @@ const emit = defineEmits(['update:modelValue', 'selected', 'upload', 'close'])
 const collectionStore = useCollectionStore()
 const $q = useQuasar()
 
-// Collections
-const collectionImages = ref([])
-const currentCollection = ref(null)
-const loadingCollection = ref(false)
+// Collections - utiliser directement les médias du store
+const collectionImages = computed(() => {
+  return collectionStore.currentCollectionMedias || []
+})
+const currentCollection = computed(() => collectionStore.currentCollection)
+const loadingCollection = computed(() => collectionStore.loading)
 
 // État local
 const selectedIds = ref([])
@@ -399,23 +401,27 @@ const displayedMedias = computed(() => {
 })
 
 // Méthodes
-function isSelected(id) {
-  return selectedIds.value.includes(id)
+function isSelected(url) {
+  return selectedIds.value.includes(url)
 }
 
 function toggleSelection(media) {
-  const index = selectedIds.value.indexOf(media.id)
+  console.log('🔍 Toggle selection:', { mediaUrl: media.url, currentSelected: [...selectedIds.value] })
+  
+  const index = selectedIds.value.indexOf(media.url)
   
   if (props.multiple) {
     if (index === -1) {
-      selectedIds.value.push(media.id)
+      selectedIds.value.push(media.url)
     } else {
       selectedIds.value.splice(index, 1)
     }
   } else {
-    selectedIds.value = index === -1 ? [media.id] : []
+    // Mode single : si déjà sélectionné, déselectionner, sinon sélectionner uniquement celui-ci
+    selectedIds.value = index === -1 ? [media.url] : []
   }
   
+  console.log('✅ Après toggle:', { selectedIds: [...selectedIds.value] })
   updateModelValue()
 }
 
@@ -426,9 +432,9 @@ function clearSelection() {
 
 function confirmSelection() {
   // Récupérer les objets médias sélectionnés depuis les collections
-  const selectedMediaObjects = selectedIds.value.map(id => {
-    // Toujours chercher dans les images de collection
-    const media = collectionImages.value.find(img => img.id === id)
+  const selectedMediaObjects = selectedIds.value.map(url => {
+    // Toujours chercher dans les images de collection par URL
+    const media = collectionImages.value.find(img => img.url === url)
     return media ? { ...media } : null // Cloner pour éviter la réactivité
   }).filter(Boolean)
   
@@ -448,57 +454,18 @@ function updateModelValue() {
 }
 
 async function loadCollectionImages() {
-  // Toujours charger les images de collection
-  
-  try {
-    loadingCollection.value = true
-    const response = await api.get('/api/collections/current/gallery')
-    
-    if (response.data.success) {
-      // Convertir le format des images de collection vers le format attendu par le composant
-      collectionImages.value = response.data.images.map((img, index) => {
-        // Extraire l'UUID depuis l'URL si disponible
-        let imageId = img.mediaId
-        
-        if (!imageId && img.url) {
-          // Extraire l'UUID depuis l'URL: /medias/uuid.extension
-          const urlMatch = img.url.match(/\/medias\/([^\/]+)$/)
-          if (urlMatch) {
-            const filename = urlMatch[1]
-            // Enlever l'extension pour avoir l'UUID
-            imageId = filename.replace(/\.[^.]+$/, '')
-          }
-        }
-        
-        // Fallback sur collection_index si pas d'UUID trouvé
-        if (!imageId) {
-          imageId = `collection_${index}`
-        }
-        
-        return {
-          id: imageId,
-          url: img.url,
-          type: img.type || 'image',  // Utiliser le vrai type (image/video)
-          originalName: img.description || `${img.type === 'video' ? 'Vidéo' : 'Image'} ${index + 1}`,
-          filename: imageId.includes('.') ? imageId : `${imageId}.${img.type === 'video' ? 'mp4' : 'jpg'}`,
-          size: 0,
-          createdAt: img.addedAt,
-          fromCollection: true
-        }
-      })
-      
-      currentCollection.value = response.data.collection
-      console.log(`📚 ${collectionImages.value.length} images chargées depuis la collection courante pour la galerie`)
-    }
-  } catch (error) {
-    console.error('Erreur chargement collection pour galerie:', error)
+  // Les médias sont déjà chargés dans le store via collectionStore.currentCollectionMedias
+  // On n'a qu'à vérifier qu'une collection est sélectionnée
+  if (!collectionStore.currentCollection) {
+    console.warn('⚠️ Aucune collection courante sélectionnée')
     $q.notify({
-      type: 'negative',
-      message: 'Erreur lors du chargement de la collection'
+      type: 'warning',
+      message: 'Veuillez sélectionner une collection'
     })
-  } finally {
-    loadingCollection.value = false
+    return
   }
+  
+  console.log(`📚 ${collectionImages.value.length} médias disponibles depuis le store`)
 }
 
 async function refreshMedias() {
@@ -569,7 +536,7 @@ function formatDate(date) {
 
 // Fonctions de la vue agrandie
 function openImageViewer(media) {
-  const index = displayedMedias.value.findIndex(m => m.id === media.id)
+  const index = displayedMedias.value.findIndex(m => m.url === media.url)
   currentImageIndex.value = index
   currentViewedImage.value = media
   showImageViewer.value = true
@@ -649,6 +616,9 @@ function initializeSelection() {
 onMounted(async () => {
   // Toujours charger depuis les collections
   await loadCollectionImages()
+  
+  // Debug: afficher tous les médias avec leurs propriétés
+  console.log('📋 Médias disponibles:', collectionImages.value.map(m => ({ url: m.url, type: m.type })))
   
   // Initialiser la sélection
   initializeSelection()

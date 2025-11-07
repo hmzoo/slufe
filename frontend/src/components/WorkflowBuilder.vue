@@ -338,6 +338,19 @@
                                     <div v-if="result.result?.image_url" class="q-mt-sm">
                                         <q-img :src="result.result.image_url" :ratio="16/9" class="rounded-borders" />
                                     </div>
+                                    
+                                    <div v-if="result.result?.video_url || result.result?.video" class="q-mt-sm">
+                                        <video 
+                                            :src="result.result.video_url || result.result.video" 
+                                            controls 
+                                            :autoplay="result.result.autoplay || false"
+                                            :loop="result.result.loop || false"
+                                            class="rounded-borders"
+                                            style="max-width: 100%; max-height: 500px;"
+                                        >
+                                            Votre navigateur ne supporte pas la balise vidéo.
+                                        </video>
+                                    </div>
                                 </q-card-section>
                                 
                                 <q-card-actions v-if="collectionStore.hasCurrentCollection">
@@ -503,15 +516,43 @@
 
                         <!-- Input image (sélection depuis les collections) -->
                         <div v-else-if="inputDef.type === 'image'">
+                            <!-- Mode variable : afficher un input texte -->
                             <q-input
-                                :model-value="getImageInputDisplayValue(taskForm[inputKey])"
+                                v-if="taskForm[inputKey]?.startsWith('{{')"
+                                v-model="taskForm[inputKey]"
                                 :label="inputDef.label"
-                                :hint="inputDef.hint || 'Sélectionnez ou ajoutez une image'"
-                                readonly
+                                :hint="'Variable utilisée'"
                                 outlined
                                 dense
+                                readonly
+                                class="q-mb-sm"
                             >
-                                <template v-slot:prepend v-if="inputDef.acceptsVariable !== false">
+                                <template v-slot:prepend>
+                                    <q-icon name="code" color="primary" />
+                                </template>
+                                <template v-slot:append>
+                                    <q-btn
+                                        icon="close"
+                                        flat
+                                        dense
+                                        @click="taskForm[inputKey] = ''"
+                                        title="Revenir au sélecteur de médias"
+                                    />
+                                </template>
+                            </q-input>
+                            
+                            <!-- Mode média : afficher le sélecteur -->
+                            <CollectionMediaSelector
+                                v-else
+                                v-model="taskForm[inputKey]"
+                                :label="inputDef.label"
+                                :placeholder="inputDef.hint || 'Sélectionnez ou ajoutez une image'"
+                                :accept="['image']"
+                                :multiple="false"
+                                :hide-preview="false"
+                                class="q-mb-md"
+                            >
+                                <template v-if="inputDef.acceptsVariable !== false" #prepend>
                                     <q-btn
                                         dense
                                         flat
@@ -523,65 +564,101 @@
                                         <q-tooltip>Sélectionner une variable</q-tooltip>
                                     </q-btn>
                                 </template>
-                                
+                            </CollectionMediaSelector>
+                        </div>
+
+                        <!-- Input images multiples (sélection depuis les collections) -->
+                        <div v-else-if="inputDef.type === 'images'">
+                            <!-- Mode variable : afficher un input texte -->
+                            <q-input
+                                v-if="typeof taskForm[inputKey] === 'string' && taskForm[inputKey]?.startsWith('{{')"
+                                v-model="taskForm[inputKey]"
+                                :label="inputDef.label"
+                                :hint="'Variable utilisée'"
+                                outlined
+                                dense
+                                readonly
+                                class="q-mb-sm"
+                            >
+                                <template v-slot:prepend>
+                                    <q-icon name="code" color="primary" />
+                                </template>
                                 <template v-slot:append>
-                                    <q-btn-group>
-                                        <q-btn
-                                            icon="photo_library"
-                                            flat
-                                            dense
-                                            @click="selectImageFromCollection(inputKey)"
-                                            title="Choisir une image existante"
-                                        />
-                                        <q-btn
-                                            icon="add_photo_alternate"
-                                            flat
-                                            dense
-                                            @click="uploadImageForInput(inputKey)"
-                                            title="Ajouter une nouvelle image"
-                                        />
-                                        <q-btn
-                                            v-if="taskForm[inputKey]"
-                                            icon="clear"
-                                            flat
-                                            dense
-                                            @click="taskForm[inputKey] = ''"
-                                            title="Supprimer la sélection"
-                                        />
-                                    </q-btn-group>
+                                    <q-btn
+                                        icon="close"
+                                        flat
+                                        dense
+                                        @click="taskForm[inputKey] = []"
+                                        title="Revenir au sélecteur de médias"
+                                    />
                                 </template>
                             </q-input>
                             
-                            <!-- Preview de l'image sélectionnée -->
-                            <div v-if="taskForm[inputKey]" class="q-mt-sm">
-                                <!-- Aperçu pour une URL normale -->
-                                <q-img
-                                    v-if="!taskForm[inputKey].startsWith('{{')"
-                                    :src="taskForm[inputKey]"
-                                    style="max-width: 200px; max-height: 150px"
-                                    fit="contain"
-                                    class="rounded-borders"
-                                />
-                                <!-- Indicateur pour une variable -->
-                                <div v-else class="variable-indicator q-pa-md text-center">
-                                    <q-icon name="code" size="2rem" color="primary" />
-                                    <div class="text-body2 q-mt-xs">Variable utilisée</div>
-                                    <div class="text-caption text-grey-6">{{ taskForm[inputKey] }}</div>
-                                </div>
-                            </div>
+                            <!-- Mode média : afficher le sélecteur -->
+                            <CollectionMediaSelector
+                                v-else
+                                v-model="taskForm[inputKey]"
+                                :label="inputDef.label"
+                                :placeholder="inputDef.hint || 'Sélectionnez ou ajoutez des images'"
+                                :accept="['image']"
+                                :multiple="inputDef.multiple !== false"
+                                :hide-preview="false"
+                                class="q-mb-md"
+                            >
+                                <template v-if="inputDef.acceptsVariable !== false" #prepend>
+                                    <q-btn
+                                        dense
+                                        flat
+                                        icon="code"
+                                        color="primary"
+                                        @click="showVariableSelector(editingTask.id, inputKey)"
+                                        size="sm"
+                                    >
+                                        <q-tooltip>Sélectionner une variable</q-tooltip>
+                                    </q-btn>
+                                </template>
+                            </CollectionMediaSelector>
                         </div>
 
                         <!-- Input video (sélection depuis les collections) -->
                         <div v-else-if="inputDef.type === 'video'">
+                            <!-- Mode variable : afficher un input texte -->
                             <q-input
-                                :model-value="getVideoInputDisplayValue(taskForm[inputKey])"
+                                v-if="taskForm[inputKey]?.startsWith('{{')"
+                                v-model="taskForm[inputKey]"
                                 :label="inputDef.label"
-                                :hint="inputDef.hint || 'Sélectionnez ou ajoutez une vidéo'"
-                                readonly
+                                :hint="'Variable utilisée'"
                                 outlined
                                 dense
+                                readonly
+                                class="q-mb-sm"
                             >
-                                <template v-slot:prepend v-if="inputDef.acceptsVariable !== false">
+                                <template v-slot:prepend>
+                                    <q-icon name="code" color="primary" />
+                                </template>
+                                <template v-slot:append>
+                                    <q-btn
+                                        icon="close"
+                                        flat
+                                        dense
+                                        @click="taskForm[inputKey] = ''"
+                                        title="Revenir au sélecteur de médias"
+                                    />
+                                </template>
+                            </q-input>
+                            
+                            <!-- Mode média : afficher le sélecteur -->
+                            <CollectionMediaSelector
+                                v-else
+                                v-model="taskForm[inputKey]"
+                                :label="inputDef.label"
+                                :placeholder="inputDef.hint || 'Sélectionnez ou ajoutez une vidéo'"
+                                :accept="['video']"
+                                :multiple="false"
+                                :hide-preview="false"
+                                class="q-mb-md"
+                            >
+                                <template v-if="inputDef.acceptsVariable !== false" #prepend>
                                     <q-btn
                                         dense
                                         flat
@@ -593,54 +670,7 @@
                                         <q-tooltip>Sélectionner une variable</q-tooltip>
                                     </q-btn>
                                 </template>
-                                
-                                <template v-slot:append>
-                                    <q-btn-group>
-                                        <q-btn
-                                            icon="video_library"
-                                            flat
-                                            dense
-                                            @click="selectVideoFromCollection(inputKey)"
-                                            title="Choisir une vidéo existante"
-                                        />
-                                        <q-btn
-                                            icon="add_to_photos"
-                                            flat
-                                            dense
-                                            @click="uploadVideoForInput(inputKey)"
-                                            title="Ajouter une nouvelle vidéo"
-                                        />
-                                        <q-btn
-                                            v-if="taskForm[inputKey]"
-                                            icon="clear"
-                                            flat
-                                            dense
-                                            @click="taskForm[inputKey] = ''"
-                                            title="Supprimer la sélection"
-                                        />
-                                    </q-btn-group>
-                                </template>
-                            </q-input>
-                            
-                            <!-- Preview de la vidéo sélectionnée -->
-                            <div v-if="taskForm[inputKey]" class="q-mt-sm">
-                                <!-- Aperçu pour une URL normale -->
-                                <video
-                                    v-if="!taskForm[inputKey].startsWith('{{')"
-                                    :src="taskForm[inputKey]"
-                                    controls
-                                    style="max-width: 300px; max-height: 200px"
-                                    class="rounded-borders"
-                                >
-                                    Votre navigateur ne supporte pas la balise vidéo.
-                                </video>
-                                <!-- Indicateur pour une variable -->
-                                <div v-else class="variable-indicator q-pa-md text-center">
-                                    <q-icon name="code" size="2rem" color="primary" />
-                                    <div class="text-body2 q-mt-xs">Variable utilisée</div>
-                                    <div class="text-caption text-grey-6">{{ taskForm[inputKey] }}</div>
-                                </div>
-                            </div>
+                            </CollectionMediaSelector>
                         </div>
 
                         <!-- Autres types d'inputs peuvent être ajoutés ici -->
@@ -717,7 +747,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useWorkflowStore } from 'src/stores/useWorkflowStore'
 import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
@@ -740,6 +770,7 @@ import { INPUT_DEFINITIONS, OUTPUT_DEFINITIONS } from 'src/config/ioDefinitions'
 import { migrateWorkflowToV2, validateWorkflowV2 } from 'src/utils/workflowMigration'
 import draggable from 'vuedraggable'
 import TaskCard from './WorkflowTaskCard.vue'
+import CollectionMediaSelector from './CollectionMediaSelector.vue'
 
 // Stores et composables
 const workflowStore = useWorkflowStore()
@@ -1124,61 +1155,6 @@ const getMediaById = (mediaId) => {
     return collectionStore.currentCollectionMedias?.find(m => m.mediaId === mediaId)
 }
 
-// Fonctions pour les inputs d'image
-const getImageInputDisplayValue = (imageUrl) => {
-    if (!imageUrl) return 'Aucune image sélectionnée'
-    
-    // Vérifier si c'est une variable (commence et finit par {{ }})
-    if (imageUrl.startsWith('{{') && imageUrl.endsWith('}}')) {
-        return `Variable: ${imageUrl}`
-    }
-    
-    // Essayer de trouver le média dans la collection pour afficher son nom
-    const media = collectionStore.currentCollectionMedias?.find(m => m.url === imageUrl)
-    if (media) {
-        return media.description || `Image ${media.mediaId.slice(0, 8)}...`
-    }
-    
-    // Sinon, extraire le nom du fichier de l'URL
-    return imageUrl.split('/').pop() || 'Image sélectionnée'
-}
-
-const selectImageFromCollection = (inputKey) => {
-    if (!collectionStore.currentCollectionMedias || collectionStore.currentCollectionMedias.length === 0) {
-        $q.notify({
-            type: 'warning',
-            message: 'Aucune image disponible dans la collection actuelle',
-            position: 'top'
-        })
-        return
-    }
-    
-    // Utiliser CollectionMediaSelector (module collection) pour sélectionner une image
-    $q.dialog({
-        component: defineAsyncComponent(() => import('./CollectionMediaSelector.vue')),
-        componentProps: {
-            modelValue: taskForm.value[inputKey] || null,
-            label: 'Sélectionner une image',
-            accept: ['image'],
-            multiple: false,
-            hidePreview: true
-        }
-    }).onOk(selectedUrl => {
-        if (selectedUrl) {
-            taskForm.value[inputKey] = selectedUrl
-            
-            // Trouver le média sélectionné pour afficher son nom
-            const selectedMedia = collectionStore.currentCollectionMedias.find(m => m.url === selectedUrl)
-            
-            $q.notify({
-                type: 'positive',
-                message: `Image "${selectedMedia?.description || selectedMedia?.originalName || 'sélectionnée'}" choisie`,
-                position: 'top'
-            })
-        }
-    })
-}
-
 const uploadImageForInput = (inputKey) => {
     // Créer un input file temporaire
     const fileInput = document.createElement('input')
@@ -1255,61 +1231,6 @@ const uploadImageForInput = (inputKey) => {
     // Ajouter temporairement à la page et cliquer
     document.body.appendChild(fileInput)
     fileInput.click()
-}
-
-// Fonctions pour les inputs de vidéo
-const getVideoInputDisplayValue = (videoUrl) => {
-    if (!videoUrl) return 'Aucune vidéo sélectionnée'
-    
-    // Vérifier si c'est une variable (commence et finit par {{ }})
-    if (videoUrl.startsWith('{{') && videoUrl.endsWith('}}')) {
-        return `Variable: ${videoUrl}`
-    }
-    
-    // Essayer de trouver le média dans la collection pour afficher son nom
-    const media = collectionStore.currentCollectionMedias?.find(m => m.url === videoUrl)
-    if (media) {
-        return media.description || `Vidéo ${media.mediaId.slice(0, 8)}...`
-    }
-    
-    // Sinon, extraire le nom du fichier de l'URL
-    return videoUrl.split('/').pop() || 'Vidéo sélectionnée'
-}
-
-const selectVideoFromCollection = (inputKey) => {
-    if (!collectionStore.currentCollectionMedias || collectionStore.currentCollectionMedias.length === 0) {
-        $q.notify({
-            type: 'warning',
-            message: 'Aucune vidéo disponible dans la collection actuelle',
-            position: 'top'
-        })
-        return
-    }
-    
-    // Utiliser CollectionMediaSelector (module collection) pour sélectionner une vidéo
-    $q.dialog({
-        component: defineAsyncComponent(() => import('./CollectionMediaSelector.vue')),
-        componentProps: {
-            modelValue: taskForm.value[inputKey] || null,
-            label: 'Sélectionner une vidéo',
-            accept: ['video'],
-            multiple: false,
-            hidePreview: true
-        }
-    }).onOk(selectedUrl => {
-        if (selectedUrl) {
-            taskForm.value[inputKey] = selectedUrl
-            
-            // Trouver le média sélectionné pour afficher son nom
-            const selectedMedia = collectionStore.currentCollectionMedias.find(m => m.url === selectedUrl)
-            
-            $q.notify({
-                type: 'positive',
-                message: `Vidéo "${selectedMedia?.description || selectedMedia?.originalName || 'sélectionnée'}" choisie`,
-                position: 'top'
-            })
-        }
-    })
 }
 
 const uploadVideoForInput = (inputKey) => {

@@ -1,0 +1,101 @@
+{
+  "id": "template_1762470825101_40f6na7cu",
+  "name": "image edit plus (Template)",
+  "description": "Workflow créé avec le Builder - 07/11/2025",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "image edit plus",
+    "description": "Workflow créé avec le Builder - 07/11/2025",
+    "workflow": {
+      "name": "Workflow en cours",
+      "inputs": [
+        {
+          "id": "text1",
+          "type": "text_input",
+          "label": "",
+          "placeholder": "",
+          "defaultValue": "",
+          "multiline": false,
+          "required": true,
+          "userInput": "elle sort de l eau"
+        },
+        {
+          "id": "image1",
+          "type": "image_input",
+          "label": "",
+          "multiple": false,
+          "required": true,
+          "maxFiles": 5,
+          "selectedImage": "/medias/19f1c07c-2fe9-48c7-8341-b9044799a95c.png",
+          "defaultImage": ""
+        }
+      ],
+      "tasks": [
+        {
+          "id": "describe1",
+          "type": "describe_images",
+          "inputs": {
+            "images": "{{image1.image}}",
+            "question": "",
+            "language": "en"
+          }
+        },
+        {
+          "id": "enhance1",
+          "type": "enhance_prompt",
+          "inputs": {
+            "prompt": "{{text1.text}}",
+            "targetType": "video",
+            "style": "photographic",
+            "imageDescription1": "{{describe1.descriptions}}",
+            "imageDescription2": ""
+          }
+        },
+        {
+          "id": "generate1",
+          "type": "generate_video_i2v",
+          "inputs": {
+            "image": "{{image1.image}}",
+            "last_image": "",
+            "prompt": "{{text1.text}}",
+            "num_frames": 81,
+            "aspect_ratio": "16:9",
+            "lora_weights_transformer": "",
+            "lora_scale_transformer": 1,
+            "lora_weights_transformer2": "",
+            "lora_scale_transformer2": 1,
+            "resolution": "480p",
+            "frames_per_second": 16,
+            "interpolate_output": true,
+            "go_fast": true,
+            "sample_shift": 12,
+            "seed": 0,
+            "disable_safety_checker": false
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "id": "video1",
+          "type": "video_output",
+          "inputs": {
+            "video": "{{generate1.video}}",
+            "title": "",
+            "width": "medium",
+            "autoplay": false,
+            "controls": true,
+            "loop": false
+          }
+        }
+      ]
+    },
+    "inputs": {},
+    "version": 1,
+    "category": "custom",
+    "icon": "save"
+  },
+  "createdAt": "2025-11-06T23:13:45.102Z",
+  "createdFrom": "image-edit-plus-1762470806343",
+  "tags": []
+}

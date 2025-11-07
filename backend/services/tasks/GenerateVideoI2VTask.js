@@ -20,6 +20,20 @@ export class GenerateVideoI2VTask {
    */
   async execute(inputs) {
     try {
+      // Normaliser les noms de champs (snake_case → camelCase pour rétro-compatibilité)
+      if (inputs.num_frames !== undefined) inputs.numFrames = inputs.num_frames;
+      if (inputs.aspect_ratio !== undefined) inputs.aspectRatio = inputs.aspect_ratio;
+      if (inputs.last_image !== undefined) inputs.lastImage = inputs.last_image;
+      if (inputs.lora_weights_transformer !== undefined) inputs.loraWeightsTransformer = inputs.lora_weights_transformer;
+      if (inputs.lora_scale_transformer !== undefined) inputs.loraScaleTransformer = inputs.lora_scale_transformer;
+      if (inputs.lora_weights_transformer2 !== undefined) inputs.loraWeightsTransformer2 = inputs.lora_weights_transformer2;
+      if (inputs.lora_scale_transformer2 !== undefined) inputs.loraScaleTransformer2 = inputs.lora_scale_transformer2;
+      if (inputs.frames_per_second !== undefined) inputs.framesPerSecond = inputs.frames_per_second;
+      if (inputs.interpolate_output !== undefined) inputs.interpolateOutput = inputs.interpolate_output;
+      if (inputs.go_fast !== undefined) inputs.goFast = inputs.go_fast;
+      if (inputs.sample_shift !== undefined) inputs.sampleShift = inputs.sample_shift;
+      if (inputs.disable_safety_checker !== undefined) inputs.disableSafetyChecker = inputs.disable_safety_checker;
+      
       // Normaliser les images : nouveau format avec image1, image2, image3
       // Pour I2V, on ne prend que la première image
       let sourceImage = null;
@@ -78,8 +92,18 @@ export class GenerateVideoI2VTask {
         prompt: inputs.prompt,
         firstFrame: inputs.image,
         ...this.getDefaultParameters(),
+        // Paramètres directs depuis inputs (priorité)
+        ...(inputs.numFrames !== undefined && { numFrames: inputs.numFrames }),
+        ...(inputs.aspectRatio !== undefined && { aspectRatio: inputs.aspectRatio }),
+        ...(inputs.framesPerSecond !== undefined && { fps: inputs.framesPerSecond }),
+        ...(inputs.resolution !== undefined && { resolution: inputs.resolution }),
+        ...(inputs.interpolateOutput !== undefined && { interpolateOutput: inputs.interpolateOutput }),
+        ...(inputs.goFast !== undefined && { goFast: inputs.goFast }),
+        ...(inputs.sampleShift !== undefined && { sampleShift: inputs.sampleShift }),
+        ...(inputs.seed !== undefined && { seed: inputs.seed }),
+        // Spread des paramètres supplémentaires dans inputs.parameters
         ...inputs.parameters,
-        // Paramètres LoRA venant directement des inputs
+        // Paramètres LoRA venant directement des inputs (dernière priorité)
         loraWeightsTransformer: inputs.loraWeightsTransformer || inputs.parameters?.loraWeightsTransformer,
         loraScaleTransformer: inputs.loraScaleTransformer ?? inputs.parameters?.loraScaleTransformer ?? 1.0,
         loraWeightsTransformer2: inputs.loraWeightsTransformer2 || inputs.parameters?.loraWeightsTransformer2,

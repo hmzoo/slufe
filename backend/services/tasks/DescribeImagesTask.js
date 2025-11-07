@@ -23,6 +23,11 @@ export class DescribeImagesTask {
    */
   async execute(inputs) {
     try {
+      // Convertir une image unique en tableau si nécessaire
+      if (inputs.images && !Array.isArray(inputs.images)) {
+        inputs.images = [inputs.images];
+      }
+      
       global.logWorkflow(`🔍 Analyse d'images`, {
         model: this.modelName,
         imageCount: inputs.images?.length || 0,
@@ -168,12 +173,15 @@ export class DescribeImagesTask {
 
     if (!inputs.images) {
       errors.push('La liste d\'images est requise');
-    } else if (!Array.isArray(inputs.images)) {
-      errors.push('Les images doivent être fournies sous forme de tableau');
-    } else if (inputs.images.length === 0) {
-      errors.push('Au moins une image doit être fournie');
-    } else if (inputs.images.length > 20) {
-      errors.push('Maximum 20 images par analyse');
+    } else {
+      // Accepter soit un tableau, soit une string unique
+      const images = Array.isArray(inputs.images) ? inputs.images : [inputs.images];
+      
+      if (images.length === 0) {
+        errors.push('Au moins une image doit être fournie');
+      } else if (images.length > 20) {
+        errors.push('Maximum 20 images par analyse');
+      }
     }
 
     // Validation du type d'analyse

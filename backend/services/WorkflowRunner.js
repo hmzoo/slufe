@@ -35,6 +35,7 @@ export class WorkflowRunner {
     this.taskServices.set('text_output', null); // Alias pour les outputs de texte  
     this.taskServices.set('image_input', null); // Support pour les inputs d'image
     this.taskServices.set('image_output', null); // Support pour les outputs d'image
+    this.taskServices.set('video_output', null); // Support pour les outputs de vidéo
     this.taskServices.set('input_images', null);
     this.taskServices.set('camera_capture', null);
   }
@@ -154,6 +155,17 @@ export class WorkflowRunner {
           title: task.title,
           caption: task.caption,
           width: task.width
+        };
+      } else if (task.type === 'video_output') {
+        taskInputs = {
+          ...taskInputs,
+          label: task.label || task.id,
+          video: task.video || taskInputs.video,
+          title: task.title,
+          width: task.width,
+          autoplay: task.autoplay,
+          controls: task.controls,
+          loop: task.loop
         };
       }
       
@@ -425,6 +437,7 @@ export class WorkflowRunner {
       'text_output': './tasks/InputTextTask.js', // Alias pour les outputs de texte
       'image_input': './tasks/InputImageTask.js', // Support pour les inputs d'image
       'image_output': './tasks/ImageOutputTask.js', // Support pour les outputs d'image
+      'video_output': './tasks/VideoOutputTask.js', // Support pour les outputs de vidéo
       'input_images': './tasks/InputImagesTask.js',
       'camera_capture': './tasks/CameraCaptureTask.js'
     };

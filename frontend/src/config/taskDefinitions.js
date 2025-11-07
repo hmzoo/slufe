@@ -324,7 +324,7 @@ export const TASK_DEFINITIONS = {
         multiline: true,
         acceptsVariable: true
       },
-      num_frames: {
+      numFrames: {
         type: 'select',
         label: 'Nombre d\'images',
         required: false,
@@ -335,7 +335,7 @@ export const TASK_DEFINITIONS = {
         default: 81,
         acceptsVariable: false
       },
-      aspect_ratio: {
+      aspectRatio: {
         type: 'select',
         label: 'Format vidéo',
         required: false,
@@ -346,7 +346,7 @@ export const TASK_DEFINITIONS = {
         default: '16:9',
         acceptsVariable: false
       },
-      lora_weights_transformer: {
+      loraWeightsTransformer: {
         type: 'text',
         label: 'URL LoRA 1 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
@@ -358,7 +358,7 @@ export const TASK_DEFINITIONS = {
           message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
         }
       },
-      lora_scale_transformer: {
+      loraScaleTransformer: {
         type: 'number',
         label: 'Poids LoRA 1',
         required: false,
@@ -368,7 +368,7 @@ export const TASK_DEFINITIONS = {
         default: 1.0,
         acceptsVariable: false
       },
-      lora_weights_transformer2: {
+      loraWeightsTransformer2: {
         type: 'text',
         label: 'URL LoRA 2 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
@@ -380,7 +380,7 @@ export const TASK_DEFINITIONS = {
           message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
         }
       },
-      lora_scale_transformer2: {
+      loraScaleTransformer2: {
         type: 'number',
         label: 'Poids LoRA 2',
         required: false,
@@ -404,7 +404,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Résolution de sortie de la vidéo'
       },
-      frames_per_second: {
+      framesPerSecond: {
         type: 'number',
         label: 'FPS',
         required: false,
@@ -415,7 +415,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Images par seconde (5-30, défaut: 16)'
       },
-      interpolate_output: {
+      interpolateOutput: {
         type: 'select',
         label: 'Interpoler à 30 FPS',
         required: false,
@@ -428,7 +428,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Interpole les frames pour une vidéo plus fluide'
       },
-      go_fast: {
+      goFast: {
         type: 'select',
         label: 'Mode rapide',
         required: false,
@@ -441,7 +441,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Active le mode génération rapide'
       },
-      sample_shift: {
+      sampleShift: {
         type: 'number',
         label: 'Intensité du mouvement',
         required: false,
@@ -500,7 +500,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: true,
         multiple: false
       },
-      last_image: {
+      lastImage: {
         type: 'image',
         label: 'Image de fin (optionnel)',
         required: false,
@@ -516,7 +516,7 @@ export const TASK_DEFINITIONS = {
         multiline: true,
         acceptsVariable: true
       },
-      num_frames: {
+      numFrames: {
         type: 'select',
         label: 'Nombre d\'images',
         required: false,
@@ -527,7 +527,7 @@ export const TASK_DEFINITIONS = {
         default: 81,
         acceptsVariable: false
       },
-      aspect_ratio: {
+      aspectRatio: {
         type: 'select',
         label: 'Format vidéo',
         required: false,
@@ -538,7 +538,7 @@ export const TASK_DEFINITIONS = {
         default: '16:9',
         acceptsVariable: false
       },
-      lora_weights_transformer: {
+      loraWeightsTransformer: {
         type: 'text',
         label: 'URL LoRA 1 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
@@ -550,7 +550,7 @@ export const TASK_DEFINITIONS = {
           message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
         }
       },
-      lora_scale_transformer: {
+      loraScaleTransformer: {
         type: 'number',
         label: 'Poids LoRA 1',
         required: false,
@@ -560,7 +560,7 @@ export const TASK_DEFINITIONS = {
         default: 1.0,
         acceptsVariable: false
       },
-      lora_weights_transformer2: {
+      loraWeightsTransformer2: {
         type: 'text',
         label: 'URL LoRA 2 (optionnel)',
         placeholder: 'https://replicate.delivery/pbxt/...',
@@ -572,7 +572,7 @@ export const TASK_DEFINITIONS = {
           message: 'URL LoRA invalide (doit commencer par https://replicate.delivery/pbxt/)'
         }
       },
-      lora_scale_transformer2: {
+      loraScaleTransformer2: {
         type: 'number',
         label: 'Poids LoRA 2',
         required: false,
@@ -596,7 +596,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Résolution de sortie de la vidéo'
       },
-      frames_per_second: {
+      framesPerSecond: {
         type: 'number',
         label: 'FPS',
         required: false,
@@ -607,7 +607,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Images par seconde (5-30, défaut: 16)'
       },
-      interpolate_output: {
+      interpolateOutput: {
         type: 'select',
         label: 'Interpoler à 30 FPS',
         required: false,
@@ -620,7 +620,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Interpole les frames pour une vidéo plus fluide'
       },
-      go_fast: {
+      goFast: {
         type: 'select',
         label: 'Mode rapide',
         required: false,
@@ -633,7 +633,7 @@ export const TASK_DEFINITIONS = {
         acceptsVariable: false,
         hint: 'Active le mode génération rapide'
       },
-      sample_shift: {
+      sampleShift: {
         type: 'number',
         label: 'Intensité du mouvement',
         required: false,
