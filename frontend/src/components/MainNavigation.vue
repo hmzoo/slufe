@@ -13,8 +13,9 @@
         <!-- NAVIGATION PRINCIPALE -->
         <q-tabs v-model="currentSection" align="right" class="text-white">
           <q-tab name="builder" label="Builder" icon="build" />
-          <q-tab name="templates" label="Templates" icon="description" />
           <q-tab name="workflows" label="Workflows" icon="account_tree" />
+          <q-tab name="templates" label="Templates" icon="description" />
+          <q-tab name="appviewer" label="AppViewer" icon="play_circle" />
           <q-tab name="collections" label="Collections" icon="collections" />
         </q-tabs>
       </q-toolbar>
@@ -43,6 +44,7 @@ import { useCollectionStore } from 'src/stores/useCollectionStore'
 import WorkflowBuilder from './WorkflowBuilder.vue'
 import TemplateManager from './TemplateManager.vue' 
 import WorkflowManager from './WorkflowManager.vue'
+import AppViewer from './AppViewer.vue'
 import CollectionView from './CollectionView.vue'
 
 // Store
@@ -60,6 +62,8 @@ const currentComponent = computed(() => {
       return TemplateManager
     case 'workflows':
       return WorkflowManager
+    case 'appviewer':
+      return AppViewer
     case 'collections':
       return CollectionView
     default:

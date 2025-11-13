@@ -81,7 +81,11 @@ export const useTemplateStore = defineStore('template', () => {
       const response = await axios.get(`${API_URL}/api/templates`)
       
       if (response.data.success) {
-        templates.value = response.data.templates || []
+        // Normaliser tous les templates chargés pour s'assurer qu'ils ont la bonne structure
+        templates.value = (response.data.templates || []).map(template => ({
+          ...template,
+          workflow: normalizeWorkflow(template.workflow)
+        }))
         console.log(`✅ ${templates.value.length} template(s) chargé(s)`)
         return templates.value
       } else {
@@ -146,7 +150,15 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       console.log(`💾 Création du template "${templateData.name}"...`)
       
-      const response = await axios.post(`${API_URL}/api/templates`, templateData)
+      // Normaliser le workflow pour s'assurer qu'il a inputs, tasks, outputs
+      const normalizedWorkflow = normalizeWorkflow(templateData.workflow)
+      
+      const templateDataToSend = {
+        ...templateData,
+        workflow: normalizedWorkflow
+      }
+      
+      const response = await axios.post(`${API_URL}/api/templates`, templateDataToSend)
       
       if (response.data.success) {
         const newTemplate = response.data.template
@@ -166,6 +178,29 @@ export const useTemplateStore = defineStore('template', () => {
       throw err
     } finally {
       loading.value = false
+    }
+  }
+  
+  /**
+   * Normalise un workflow pour s'assurer qu'il a la structure v2
+   * { inputs: [], tasks: [], outputs: [] }
+   */
+  function normalizeWorkflow(workflow) {
+    if (!workflow) return { inputs: [], tasks: [], outputs: [] }
+    
+    return {
+      name: workflow.name || 'Workflow',
+      description: workflow.description || '',
+      inputs: Array.isArray(workflow.inputs) ? workflow.inputs : [],
+      tasks: Array.isArray(workflow.tasks) ? workflow.tasks : [],
+      outputs: Array.isArray(workflow.outputs) ? workflow.outputs : [],
+      // Préserver les autres propriétés
+      ...Object.keys(workflow)
+        .filter(key => !['name', 'description', 'inputs', 'tasks', 'outputs'].includes(key))
+        .reduce((acc, key) => {
+          acc[key] = workflow[key]
+          return acc
+        }, {})
     }
   }
   

@@ -45,13 +45,13 @@
             </div>
 
             <!-- Collection courante -->
-            <q-card v-if="currentCollection" flat bordered class="q-mb-md bg-blue-1">
+            <q-card v-if="collectionStore.activeCollection" flat bordered class="q-mb-md bg-blue-1">
               <q-card-section>
                 <div class="row items-center">
                   <q-icon name="star" color="amber" class="q-mr-sm" />
                   <div>
                     <div class="text-subtitle2">Collection active</div>
-                    <div class="text-body2">{{ currentCollection.name }}</div>
+                    <div class="text-body2">{{ collectionStore.activeCollection.name }}</div>
                   </div>
                 </div>
               </q-card-section>

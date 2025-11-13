@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspecteur localStorage - Slufe</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007acc;
+            padding-bottom: 10px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.2em;
+        }
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .storage-item {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .storage-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .storage-header:hover {
+            background: #e9ecef;
+        }
+        .storage-key {
+            font-weight: bold;
+            color: #007acc;
+        }
+        .storage-size {
+            background: #17a2b8;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        .storage-content {
+            padding: 15px;
+            background: #f8f9fa;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .json-container {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .json-key {
+            color: #9f7aea;
+        }
+        .json-string {
+            color: #68d391;
+        }
+        .json-number {
+            color: #f6ad55;
+        }
+        .json-boolean {
+            color: #63b3ed;
+        }
+        .json-null {
+            color: #a0aec0;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .filter-container {
+            margin: 20px 0;
+        }
+        .filter-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Inspecteur localStorage - Slufe Frontend</h1>
+        
+        <div class="stats" id="stats">
+            <!-- Les statistiques seront générées ici -->
+        </div>
+
+        <div class="controls">
+            <button onclick="refreshData()">🔄 Actualiser</button>
+            <button onclick="exportData()">📁 Exporter JSON</button>
+            <button onclick="clearAllData()" class="danger">🗑️ Vider tout localStorage</button>
+            <button onclick="toggleAll()">📖 Développer/Réduire tout</button>
+        </div>
+
+        <div class="filter-container">
+            <input type="text" class="filter-input" placeholder="🔍 Filtrer les clés..." 
+                   oninput="filterItems(this.value)" id="filterInput">
+        </div>
+
+        <div id="storageContainer">
+            <!-- Le contenu du localStorage sera généré ici -->
+        </div>
+    </div>
+
+    <script>
+        let storageData = {};
+        let isAllExpanded = false;
+
+        // Clés localStorage spécifiques à Slufe connues
+        const knownSlufeKeys = [
+            'slufe_current_workflow',
+            'slufe_saved_workflows', 
+            'saved-workflows',
+            'workflows-migrated-v2',
+            'customWorkflows'
+        ];
+
+        function loadStorageData() {
+            storageData = {};
+            
+            // Charger toutes les données du localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                
+                try {
+                    // Tentative de parsing JSON
+                    const parsedValue = JSON.parse(value);
+                    storageData[key] = {
+                        raw: value,
+                        parsed: parsedValue,
+                        size: new Blob([value]).size,
+                        type: typeof parsedValue,
+                        isJSON: true,
+                        isSlufeKey: knownSlufeKeys.includes(key) || key.startsWith('slufe_')
+                    };
+                } catch (e) {
+                    // Si ce n'est pas du JSON valide
+                    storageData[key] = {
+                        raw: value,
+                        parsed: value,
+                        size: new Blob([value]).size,
+                        type: typeof value,
+                        isJSON: false,
+                        isSlufeKey: knownSlufeKeys.includes(key) || key.startsWith('slufe_')
+                    };
+                }
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function generateStats() {
+            const keys = Object.keys(storageData);
+            const slufeKeys = keys.filter(key => storageData[key].isSlufeKey);
+            const totalSize = keys.reduce((sum, key) => sum + storageData[key].size, 0);
+            const slufeSize = slufeKeys.reduce((sum, key) => sum + storageData[key].size, 0);
+            
+            const workflowKeys = keys.filter(key => key.includes('workflow'));
+            const jsonKeys = keys.filter(key => storageData[key].isJSON);
+
+            return {
+                totalKeys: keys.length,
+                slufeKeys: slufeKeys.length,
+                workflowKeys: workflowKeys.length,
+                jsonKeys: jsonKeys.length,
+                totalSize: formatBytes(totalSize),
+                slufeSize: formatBytes(slufeSize)
+            };
+        }
+
+        function renderStats() {
+            const stats = generateStats();
+            const statsContainer = document.getElementById('stats');
+            
+            statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <h3>Total Clés</h3>
+                    <div class="value">${stats.totalKeys}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Clés Slufe</h3>
+                    <div class="value">${stats.slufeKeys}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Clés Workflow</h3>
+                    <div class="value">${stats.workflowKeys}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Objets JSON</h3>
+                    <div class="value">${stats.jsonKeys}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Taille totale</h3>
+                    <div class="value">${stats.totalSize}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Taille Slufe</h3>
+                    <div class="value">${stats.slufeSize}</div>
+                </div>
+            `;
+        }
+
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, 
+                function (match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                }
+            );
+        }
+
+        function analyzeWorkflowData(key, data) {
+            let analysis = '';
+            
+            if (key === 'slufe_current_workflow' && data.parsed) {
+                analysis += `<strong>Workflow Actuel:</strong><br>`;
+                analysis += `• ID: ${data.parsed.id || 'N/A'}<br>`;
+                analysis += `• Nom: ${data.parsed.name || 'N/A'}<br>`;
+                analysis += `• Tâches: ${data.parsed.tasks?.length || 0}<br>`;
+                analysis += `• Version: ${data.parsed.version || 'N/A'}<br><br>`;
+            }
+            
+            if (key === 'slufe_saved_workflows' && Array.isArray(data.parsed)) {
+                analysis += `<strong>Workflows Sauvegardés:</strong><br>`;
+                analysis += `• Nombre: ${data.parsed.length}<br>`;
+                if (data.parsed.length > 0) {
+                    const categories = [...new Set(data.parsed.map(w => w.category).filter(Boolean))];
+                    analysis += `• Catégories: ${categories.join(', ') || 'Aucune'}<br>`;
+                }
+                analysis += '<br>';
+            }
+            
+            if (key === 'workflows-migrated-v2') {
+                analysis += `<strong>Migration V2:</strong> ${data.parsed ? 'Effectuée' : 'Non effectuée'}<br><br>`;
+            }
+            
+            return analysis;
+        }
+
+        function renderStorageItems() {
+            const container = document.getElementById('storageContainer');
+            const keys = Object.keys(storageData).sort((a, b) => {
+                // Prioriser les clés Slufe
+                if (storageData[a].isSlufeKey && !storageData[b].isSlufeKey) return -1;
+                if (!storageData[a].isSlufeKey && storageData[b].isSlufeKey) return 1;
+                return a.localeCompare(b);
+            });
+            
+            container.innerHTML = keys.map(key => {
+                const item = storageData[key];
+                const analysis = analyzeWorkflowData(key, item);
+                
+                return `
+                    <div class="storage-item" data-key="${key}">
+                        <div class="storage-header" onclick="toggleItem('${key}')">
+                            <div>
+                                <span class="storage-key">${key}</span>
+                                ${item.isSlufeKey ? ' 🎯' : ''}
+                                ${key.includes('workflow') ? ' ⚡' : ''}
+                            </div>
+                            <div>
+                                <span class="storage-size">${formatBytes(item.size)}</span>
+                            </div>
+                        </div>
+                        <div class="storage-content hidden" id="content-${key}">
+                            <div style="margin-bottom: 15px;">
+                                <strong>Type:</strong> ${item.type} 
+                                ${item.isJSON ? '(JSON valide)' : '(Texte brut)'}
+                                <br>
+                                <strong>Taille:</strong> ${formatBytes(item.size)}
+                                <br>
+                                ${analysis}
+                            </div>
+                            
+                            <div class="json-container">
+                                <pre>${item.isJSON ? syntaxHighlight(item.parsed) : item.raw}</pre>
+                            </div>
+                            
+                            <div style="margin-top: 15px;">
+                                <button onclick="copyToClipboard('${key}')" style="margin-right: 10px;">
+                                    📋 Copier JSON
+                                </button>
+                                <button onclick="deleteItem('${key}')" class="danger">
+                                    🗑️ Supprimer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleItem(key) {
+            const content = document.getElementById(`content-${key}`);
+            content.classList.toggle('hidden');
+        }
+
+        function toggleAll() {
+            isAllExpanded = !isAllExpanded;
+            const contents = document.querySelectorAll('.storage-content');
+            contents.forEach(content => {
+                if (isAllExpanded) {
+                    content.classList.remove('hidden');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        function filterItems(query) {
+            const items = document.querySelectorAll('.storage-item');
+            items.forEach(item => {
+                const key = item.dataset.key.toLowerCase();
+                if (key.includes(query.toLowerCase()) || query === '') {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function refreshData() {
+            loadStorageData();
+            renderStats();
+            renderStorageItems();
+            showMessage('Données actualisées !', 'success');
+        }
+
+        function exportData() {
+            const exportObj = {};
+            Object.keys(storageData).forEach(key => {
+                exportObj[key] = storageData[key].parsed;
+            });
+            
+            const dataStr = JSON.stringify(exportObj, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `slufe-localstorage-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            showMessage('Export téléchargé !', 'success');
+        }
+
+        function copyToClipboard(key) {
+            const data = JSON.stringify(storageData[key].parsed, null, 2);
+            navigator.clipboard.writeText(data).then(() => {
+                showMessage(`Données de "${key}" copiées !`, 'success');
+            });
+        }
+
+        function deleteItem(key) {
+            if (confirm(`Êtes-vous sûr de vouloir supprimer "${key}" ?`)) {
+                localStorage.removeItem(key);
+                refreshData();
+                showMessage(`"${key}" supprimé !`, 'success');
+            }
+        }
+
+        function clearAllData() {
+            if (confirm('ATTENTION: Cela va supprimer TOUT le localStorage. Continuer ?')) {
+                localStorage.clear();
+                refreshData();
+                showMessage('Tout le localStorage a été vidé !', 'success');
+            }
+        }
+
+        function showMessage(message, type) {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            document.querySelector('.container').insertBefore(div, document.querySelector('.stats'));
+            setTimeout(() => div.remove(), 3000);
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStorageData();
+            renderStats();
+            renderStorageItems();
+            
+            // Vérification périodique des changements
+            setInterval(() => {
+                const currentKeys = Object.keys(localStorage);
+                const storedKeys = Object.keys(storageData);
+                
+                if (currentKeys.length !== storedKeys.length) {
+                    refreshData();
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

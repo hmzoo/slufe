@@ -578,7 +578,10 @@ function createWorkflowFromTemplate(template) {
 
     try {
       // Créer une copie profonde du workflow template
-      const newWorkflow = JSON.parse(JSON.stringify(template.workflow))
+      let newWorkflow = JSON.parse(JSON.stringify(template.workflow))
+      
+      // Normaliser le workflow pour s'assurer qu'il a inputs, tasks, outputs
+      newWorkflow = normalizeWorkflowStructure(newWorkflow)
       
       // Définir le nouveau nom et générer un nouvel ID
       newWorkflow.name = workflowName.trim()
@@ -615,6 +618,28 @@ function createWorkflowFromTemplate(template) {
       })
     }
   })
+}
+
+/**
+ * Normalise la structure du workflow pour s'assurer qu'il a inputs, tasks, outputs
+ */
+function normalizeWorkflowStructure(workflow) {
+  if (!workflow) return { name: 'Workflow', inputs: [], tasks: [], outputs: [] }
+  
+  return {
+    name: workflow.name || 'Workflow',
+    description: workflow.description || '',
+    inputs: Array.isArray(workflow.inputs) ? workflow.inputs : [],
+    tasks: Array.isArray(workflow.tasks) ? workflow.tasks : [],
+    outputs: Array.isArray(workflow.outputs) ? workflow.outputs : [],
+    // Préserver les autres propriétés
+    ...Object.keys(workflow)
+      .filter(key => !['name', 'description', 'inputs', 'tasks', 'outputs'].includes(key))
+      .reduce((acc, key) => {
+        acc[key] = workflow[key]
+        return acc
+      }, {})
+  }
 }
 
 

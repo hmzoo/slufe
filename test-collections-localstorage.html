@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Collections localStorage</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section { 
+            border: 1px solid #ddd; 
+            margin: 15px 0; 
+            padding: 15px; 
+            border-radius: 5px; 
+        }
+        button { 
+            background: #007acc; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { background: #005a9e; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        .result { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-family: monospace; 
+            white-space: pre-wrap;
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Collections localStorage - Slufe</h1>
+        <p><strong>Page de test pour vérifier la persistance des collections</strong></p>
+        
+        <div class="test-section">
+            <h3>📋 État actuel du localStorage</h3>
+            <button onclick="checkLocalStorage()">🔍 Vérifier localStorage</button>
+            <div id="localStorage-status" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Simuler sélection de collection</h3>
+            <button onclick="setTestCollection('collection_test_123')">Définir Collection Test 1</button>
+            <button onclick="setTestCollection('collection_test_456')">Définir Collection Test 2</button>
+            <button onclick="setTestCollection(null)">Effacer Collection</button>
+            <div id="collection-status" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Test de persistance après rafraîchissement</h3>
+            <p>1. Définissez une collection test ci-dessus</p>
+            <p>2. Cliquez sur "Rafraîchir la page" pour vérifier la persistance</p>
+            <button onclick="window.location.reload()">🔄 Rafraîchir la page</button>
+            <div id="persistence-status" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧹 Nettoyage</h3>
+            <button onclick="clearCollectionStorage()" class="danger">🗑️ Vider localStorage Collections</button>
+            <button onclick="clearAllStorage()" class="danger">🗑️ Vider tout localStorage</button>
+            <div id="cleanup-status" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Statistiques localStorage</h3>
+            <button onclick="showStats()">📈 Afficher statistiques</button>
+            <div id="stats" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Constantes des clés localStorage (même que dans le store)
+        const STORAGE_KEYS = {
+            CURRENT_COLLECTION_ID: 'slufe_current_collection_id',
+            DEFAULT_COLLECTION_ID: 'slufe_default_collection_id'
+        };
+
+        // Fonction pour vérifier l'état du localStorage
+        function checkLocalStorage() {
+            const status = document.getElementById('localStorage-status');
+            
+            const currentCollection = localStorage.getItem(STORAGE_KEYS.CURRENT_COLLECTION_ID);
+            const defaultCollection = localStorage.getItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID);
+            
+            let report = '📊 État du localStorage Collections:\n\n';
+            report += `🎯 Collection actuelle: ${currentCollection || 'Aucune'}\n`;
+            report += `🏠 Collection par défaut: ${defaultCollection || 'Aucune'}\n\n`;
+            
+            // Autres clés Slufe
+            const slufeKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('slufe_')) {
+                    slufeKeys.push(key);
+                }
+            }
+            
+            if (slufeKeys.length > 0) {
+                report += '🔑 Autres clés Slufe détectées:\n';
+                slufeKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    const size = new Blob([value]).size;
+                    report += `  • ${key}: ${size} bytes\n`;
+                });
+            } else {
+                report += '🔑 Aucune autre clé Slufe détectée\n';
+            }
+            
+            status.textContent = report;
+            status.className = 'result info';
+        }
+
+        // Simuler la définition d'une collection
+        function setTestCollection(collectionId) {
+            const status = document.getElementById('collection-status');
+            
+            try {
+                if (collectionId) {
+                    localStorage.setItem(STORAGE_KEYS.CURRENT_COLLECTION_ID, collectionId);
+                    localStorage.setItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID, collectionId);
+                    
+                    status.textContent = `✅ Collection définie: ${collectionId}\n` +
+                                       `⏰ Timestamp: ${new Date().toLocaleString()}`;
+                    status.className = 'result success';
+                } else {
+                    localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID);
+                    localStorage.removeItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID);
+                    
+                    status.textContent = `🗑️ Collections effacées\n` +
+                                       `⏰ Timestamp: ${new Date().toLocaleString()}`;
+                    status.className = 'result info';
+                }
+                
+                // Actualiser l'affichage
+                checkLocalStorage();
+                
+            } catch (error) {
+                status.textContent = `❌ Erreur: ${error.message}`;
+                status.className = 'result error';
+            }
+        }
+
+        // Vérifier la persistance au chargement de la page
+        function checkPersistenceOnLoad() {
+            const status = document.getElementById('persistence-status');
+            const currentCollection = localStorage.getItem(STORAGE_KEYS.CURRENT_COLLECTION_ID);
+            
+            if (currentCollection) {
+                status.textContent = `✅ Collection persistée après rafraîchissement!\n` +
+                                   `🎯 Collection actuelle: ${currentCollection}\n` +
+                                   `⏰ Vérification: ${new Date().toLocaleString()}`;
+                status.className = 'result success';
+            } else {
+                status.textContent = `ℹ️ Aucune collection persistée\n` +
+                                   `💡 Définissez d'abord une collection test ci-dessus`;
+                status.className = 'result info';
+            }
+        }
+
+        // Nettoyage du localStorage des collections
+        function clearCollectionStorage() {
+            const status = document.getElementById('cleanup-status');
+            
+            try {
+                localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID);
+                localStorage.removeItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID);
+                
+                status.textContent = `🧹 localStorage des collections nettoyé\n` +
+                                   `⏰ Timestamp: ${new Date().toLocaleString()}`;
+                status.className = 'result success';
+                
+                checkLocalStorage();
+            } catch (error) {
+                status.textContent = `❌ Erreur: ${error.message}`;
+                status.className = 'result error';
+            }
+        }
+
+        // Nettoyage complet du localStorage
+        function clearAllStorage() {
+            const status = document.getElementById('cleanup-status');
+            
+            if (confirm('⚠️ Attention: Ceci va supprimer TOUT le localStorage. Continuer ?')) {
+                try {
+                    localStorage.clear();
+                    
+                    status.textContent = `🧹 Tout le localStorage a été vidé\n` +
+                                       `⏰ Timestamp: ${new Date().toLocaleString()}`;
+                    status.className = 'result success';
+                    
+                    checkLocalStorage();
+                } catch (error) {
+                    status.textContent = `❌ Erreur: ${error.message}`;
+                    status.className = 'result error';
+                }
+            }
+        }
+
+        // Statistiques du localStorage
+        function showStats() {
+            const status = document.getElementById('stats');
+            
+            let totalSize = 0;
+            let totalKeys = localStorage.length;
+            let slufeKeys = 0;
+            
+            const keysBySize = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                const size = new Blob([value]).size;
+                
+                totalSize += size;
+                keysBySize.push({ key, size });
+                
+                if (key.startsWith('slufe_')) {
+                    slufeKeys++;
+                }
+            }
+            
+            keysBySize.sort((a, b) => b.size - a.size);
+            
+            function formatBytes(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            let report = '📊 Statistiques localStorage:\n\n';
+            report += `🔢 Nombre total de clés: ${totalKeys}\n`;
+            report += `🎯 Clés Slufe: ${slufeKeys}\n`;
+            report += `📏 Taille totale: ${formatBytes(totalSize)}\n\n`;
+            
+            if (keysBySize.length > 0) {
+                report += '📋 Top 5 des clés par taille:\n';
+                keysBySize.slice(0, 5).forEach((item, index) => {
+                    report += `  ${index + 1}. ${item.key}: ${formatBytes(item.size)}\n`;
+                });
+            }
+            
+            status.textContent = report;
+            status.className = 'result info';
+        }
+
+        // Initialisation au chargement de la page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Page de test Collections localStorage chargée');
+            
+            // Vérifier l'état initial
+            checkLocalStorage();
+            checkPersistenceOnLoad();
+            
+            console.log('✅ Tests initialisés');
+        });
+
+        // Écouter les changements du localStorage (si plusieurs onglets ouverts)
+        window.addEventListener('storage', function(e) {
+            if (e.key && e.key.startsWith('slufe_')) {
+                console.log('🔄 Changement localStorage détecté:', e.key, e.newValue);
+                checkLocalStorage();
+            }
+        });
+    </script>
+</body>
+</html>

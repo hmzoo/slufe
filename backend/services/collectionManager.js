@@ -1,12 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
+import { getCollectionsDir } from '../utils/fileUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Dossier des collections
-const COLLECTIONS_DIR = path.join(__dirname, '..', 'collections');
+// Dossier des collections (maintenant dans /data/)
+const COLLECTIONS_DIR = getCollectionsDir();
 
 // Fichier pour stocker la collection courante
 const CURRENT_COLLECTION_FILE = path.join(COLLECTIONS_DIR, '_current.json');

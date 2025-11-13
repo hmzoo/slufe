@@ -6,18 +6,15 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initializeStorage } from './services/dataStorage.js';
 import { initializeCollections } from './services/collectionManager.js';
+import { getMediasDir, getWorkflowsDir } from './utils/fileUtils.js';
 import aiRoutes from './routes/ai.js';
-import promptRoutes from './routes/prompt.js';
-import imagesRoutes from './routes/images.js';
-import generateRoutes from './routes/generate.js';
-import editRoutes from './routes/edit.js';
-import videoRoutes from './routes/video.js';
-import videoImageRoutes from './routes/videoImage.js';
+
+// ✅ ENDPOINTS ACTIFS - Utilisés par le frontend
 import workflowRoutes from './routes/workflow.js';
 import historyRoutes from './routes/history.js';
-import uploadRoutes from './routes/upload.js';
 import templateRoutes from './routes/templates.js';
 import collectionsRoutes from './routes/collections.js';
+import mediaUnifiedRoutes from './routes/mediaUnified.js';
 
 dotenv.config();
 
@@ -58,24 +55,20 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // API Routes
 app.use('/api', aiRoutes);
-app.use('/api/prompt', promptRoutes);
-app.use('/api/images', imagesRoutes);
-app.use('/api/generate', generateRoutes);
-app.use('/api/edit', editRoutes);
-app.use('/api/video', videoRoutes);
-app.use('/api/video-image', videoImageRoutes);
+
+// ✅ ENDPOINTS ACTIFS - Utilisés par le frontend
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/history', historyRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/collections', collectionsRoutes);
+app.use('/api/media', mediaUnifiedRoutes);
 
-// Servir les fichiers médias (images, vidéos)
-const mediasPath = path.join(__dirname, 'medias');
+// Servir les fichiers médias (images, vidéos) - maintenant dans /data/medias/
+const mediasPath = getMediasDir();
 app.use('/medias', express.static(mediasPath));
 
-// Servir les workflows JSON
-const workflowsPath = path.join(__dirname, 'workflows');
+// Servir les workflows JSON - maintenant dans /data/workflows/
+const workflowsPath = getWorkflowsDir();
 app.use('/workflows', express.static(workflowsPath));
 
 // Servir les fichiers statiques du frontend (après build)

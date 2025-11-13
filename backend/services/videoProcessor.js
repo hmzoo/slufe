@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import { getMediaFilePath, getMediaFileUrl, generateUniqueFileName } from '../utils/fileUtils.js';
+import { getMediaFilePath, getMediaFileUrl, generateUniqueFileName, getMediasDir } from '../utils/fileUtils.js';
 import { addImageToCurrentCollection } from './collectionManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -72,7 +72,9 @@ export async function extractVideoFrame({
       // Objet avec url → extraire et convertir en chemin absolu si nécessaire
       const url = video.url;
       if (url.startsWith('/medias/')) {
-        videoPath = path.join(__dirname, '..', url);
+        const filename = url.replace('/medias/', '');
+        const mediasDir = getMediasDir();
+        videoPath = path.join(mediasDir, filename);
         global.logWorkflow('📁 Lecture vidéo locale depuis objet', { url, videoPath });
       } else {
         videoPath = url;
@@ -83,7 +85,9 @@ export async function extractVideoFrame({
       global.logWorkflow('📁 Utilisation path direct', { videoPath });
     } else if (typeof video === 'string' && video.startsWith('/medias/')) {
       // Chemin local /medias/... → chemin absolu
-      videoPath = path.join(__dirname, '..', video);
+      const filename = video.replace('/medias/', '');
+      const mediasDir = getMediasDir();
+      videoPath = path.join(mediasDir, filename);
       global.logWorkflow('📁 Lecture vidéo locale', { videoPath });
     }
 

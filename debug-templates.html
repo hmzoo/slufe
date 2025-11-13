@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Debug Template Structure</title>
+  <style>
+    body {
+      font-family: Monaco, monospace;
+      background: #f5f5f5;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2196F3;
+      border-bottom: 2px solid #2196F3;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #FF9800;
+      margin-top: 30px;
+    }
+    .template-list {
+      list-style: none;
+      padding: 0;
+    }
+    .template-list li {
+      padding: 10px;
+      margin: 5px 0;
+      background: #f9f9f9;
+      border-left: 4px solid #2196F3;
+      cursor: pointer;
+    }
+    .template-list li:hover {
+      background: #f0f0f0;
+    }
+    .template-list li.active {
+      background: #E3F2FD;
+      border-left-color: #FF9800;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      border-left: 4px solid #4CAF50;
+      overflow-x: auto;
+      max-height: 500px;
+    }
+    .json-key { color: #D32F2F; font-weight: bold; }
+    .json-value { color: #F57C00; }
+    .json-string { color: #388E3C; }
+    .json-number { color: #0288D1; }
+    .json-boolean { color: #C2185B; }
+    .error {
+      color: #D32F2F;
+      background: #FFEBEE;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .success {
+      color: #388E3C;
+      background: #E8F5E9;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: #F5F5F5;
+      padding: 15px;
+      border-radius: 4px;
+      border-top: 4px solid #2196F3;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2196F3;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Debug: Structure des Templates</h1>
+    
+    <div id="app">
+      <p>Chargement des templates...</p>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:3000';
+
+    async function init() {
+      try {
+        const response = await fetch(`${API_URL}/api/templates`);
+        const data = await response.json();
+
+        if (!data.success || !data.templates) {
+          throw new Error('Erreur API');
+        }
+
+        const templates = data.templates;
+        const app = document.getElementById('app');
+
+        // Statistiques globales
+        const stats = `
+          <div class="stats">
+            <div class="stat-card">
+              <div class="stat-value">${templates.length}</div>
+              <div class="stat-label">Templates trouvés</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${templates.filter(t => t.workflow?.tasks).length}</div>
+              <div class="stat-label">Avec tâches</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${templates.filter(t => t.inputs).length}</div>
+              <div class="stat-label">Avec inputs property</div>
+            </div>
+          </div>
+        `;
+
+        // Liste des templates
+        const list = templates.map(t => `
+          <li class="template-item" data-id="${t.id}">
+            <strong>${t.name}</strong>
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+              ${t.category || 'custom'} • ${t.workflow?.tasks?.length || 0} tâches
+            </div>
+          </li>
+        `).join('');
+
+        app.innerHTML = `
+          ${stats}
+          
+          <h2>📋 Sélectionner un Template</h2>
+          <ul class="template-list" id="templateList">
+            ${list}
+          </ul>
+          
+          <h2>📊 Détails du Template</h2>
+          <div id="details" style="display: none;">
+            <h3 id="templateName"></h3>
+            
+            <div class="stats" id="templateStats"></div>
+            
+            <h3>Structure complète (JSON)</h3>
+            <pre id="templateJson"></pre>
+            
+            <h3>Tâches du Workflow</h3>
+            <pre id="workflowTasks"></pre>
+            
+            <h3>Inputs extraits (AppViewer)</h3>
+            <div id="extractedInputs"></div>
+          </div>
+        `;
+
+        // Event listeners
+        document.querySelectorAll('.template-item').forEach(item => {
+          item.addEventListener('click', () => {
+            document.querySelectorAll('.template-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            const templateId = item.dataset.id;
+            const template = templates.find(t => t.id === templateId);
+            
+            showTemplate(template);
+          });
+        });
+
+        // Afficher le premier template par défaut
+        if (templates.length > 0) {
+          document.querySelector('.template-item').click();
+        }
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('app').innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function showTemplate(template) {
+      const detailsDiv = document.getElementById('details');
+      const nameEl = document.getElementById('templateName');
+      const statsDiv = document.getElementById('templateStats');
+      const jsonEl = document.getElementById('templateJson');
+      const tasksEl = document.getElementById('workflowTasks');
+      const inputsEl = document.getElementById('extractedInputs');
+
+      // Titre
+      nameEl.textContent = template.name;
+
+      // Statistiques
+      const tasks = template.workflow?.tasks || [];
+      const hasInputs = Object.keys(template.inputs || {}).length > 0;
+      
+      statsDiv.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${tasks.length}</div>
+          <div class="stat-label">Tâches</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${tasks.filter(t => t.type?.includes('input')).length}</div>
+          <div class="stat-label">Tâches Input</div>
+        </div>
+        <div class="stat-card" style="border-top-color: ${hasInputs ? '#4CAF50' : '#FF9800'}">
+          <div class="stat-value" style="color: ${hasInputs ? '#4CAF50' : '#FF9800'};">${Object.keys(template.inputs || {}).length}</div>
+          <div class="stat-label">Propriété inputs</div>
+        </div>
+      `;
+
+      // JSON complet
+      jsonEl.textContent = JSON.stringify(template, null, 2);
+
+      // Tâches du workflow
+      tasksEl.innerHTML = '<strong>Tâches du workflow:</strong>\n' + JSON.stringify(tasks, null, 2);
+
+      // Inputs extraits
+      const extractedInputs = extractInputsFromWorkflow(template.workflow);
+      
+      if (Object.keys(extractedInputs).length > 0) {
+        inputsEl.innerHTML = `
+          <div class="success">✅ ${Object.keys(extractedInputs).length} input(s) extrait(s)</div>
+          <pre>${JSON.stringify(extractedInputs, null, 2)}</pre>
+        `;
+      } else {
+        inputsEl.innerHTML = `
+          <div class="error">❌ Aucun input trouvé</div>
+          <p>Les types de tâches trouvés sont:</p>
+          <pre>${tasks.map(t => `• ${t.id}: ${t.type}`).join('\n')}</pre>
+        `;
+      }
+
+      detailsDiv.style.display = 'block';
+    }
+
+    // Fonction d'extraction identique à AppViewer.vue
+    function extractInputsFromWorkflow(workflow) {
+      const inputs = {};
+
+      if (!workflow) {
+        return inputs;
+      }
+
+      // MÉTHODE 1: Chercher dans workflow.inputs
+      const workflowInputs = workflow.inputs || [];
+
+      if (Array.isArray(workflowInputs) && workflowInputs.length > 0) {
+        workflowInputs.forEach((input) => {
+          if (!input || !input.id || !input.type) return;
+
+          const inputType = input.type.toLowerCase();
+
+          if (inputType.includes('text')) {
+            inputs[input.id] = {
+              id: input.id,
+              type: 'text_input',
+              label: input.label || 'Saisie texte',
+              placeholder: input.placeholder || '',
+              hint: input.hint || '',
+              required: input.required !== undefined ? input.required : true,
+              defaultValue: input.defaultValue || '',
+              multiline: input.multiline || false
+            };
+          } else if (inputType.includes('image')) {
+            inputs[input.id] = {
+              id: input.id,
+              type: 'image_input',
+              label: input.label || 'Image',
+              placeholder: input.placeholder || 'Sélectionner une image',
+              hint: input.hint || '',
+              required: input.required !== undefined ? input.required : true,
+              multiple: input.multiple || false,
+              maxFiles: input.maxFiles || 1
+            };
+          } else if (inputType.includes('number')) {
+            inputs[input.id] = {
+              id: input.id,
+              type: 'number',
+              label: input.label || 'Nombre',
+              defaultValue: input.defaultValue !== undefined ? input.defaultValue : 0
+            };
+          } else if (inputType.includes('select')) {
+            inputs[input.id] = {
+              id: input.id,
+              type: 'select',
+              label: input.label || 'Sélection',
+              options: input.options || []
+            };
+          }
+        });
+      }
+
+      // MÉTHODE 2: Chercher dans les tâches (fallback)
+      if (Object.keys(inputs).length === 0) {
+        const tasks = workflow.tasks || [];
+
+        tasks.forEach((task) => {
+          if (!task || !task.type) return;
+
+          const taskType = task.type.toLowerCase();
+
+          if (taskType.includes('text') && taskType.includes('input')) {
+            const inputId = task.id || `text_${Object.keys(inputs).length}`;
+            inputs[inputId] = {
+              id: inputId,
+              type: 'text_input',
+              label: task.label || 'Saisie texte',
+              placeholder: task.placeholder || '',
+              hint: task.hint || '',
+              required: task.required !== undefined ? task.required : true,
+              defaultValue: task.defaultValue || '',
+              multiline: task.multiline || false
+            };
+          } else if (taskType.includes('image') && taskType.includes('input')) {
+            const inputId = task.id || `image_${Object.keys(inputs).length}`;
+            inputs[inputId] = {
+              id: inputId,
+              type: 'image_input',
+              label: task.label || 'Image',
+              placeholder: task.placeholder || 'Sélectionner une image',
+              hint: task.hint || '',
+              required: task.required !== undefined ? task.required : true,
+              multiple: task.multiple || false,
+              maxFiles: task.maxFiles || 1
+            };
+          } else if (taskType.includes('number') && taskType.includes('input')) {
+            const inputId = task.id || `number_${Object.keys(inputs).length}`;
+            inputs[inputId] = {
+              id: inputId,
+              type: 'number',
+              label: task.label || 'Nombre',
+              defaultValue: task.defaultValue !== undefined ? task.defaultValue : 0
+            };
+          } else if (taskType.includes('select') && taskType.includes('input')) {
+            const inputId = task.id || `select_${Object.keys(inputs).length}`;
+            inputs[inputId] = {
+              id: inputId,
+              type: 'select',
+              label: task.label || 'Sélection',
+              options: task.options || []
+            };
+          }
+        });
+      }
+
+      return inputs;
+    }
+
+    // Initialiser au chargement
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>

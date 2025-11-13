@@ -13,16 +13,24 @@ L'API SLUFE IA fournit des services d'intelligence artificielle pour la généra
 http://localhost:3000/api
 ```
 
+### 📁 Ressources statiques
+```
+http://localhost:3000/medias/    - Fichiers médias (images, vidéos)
+http://localhost:3000/workflows/ - Fichiers JSON de workflows
+```
+
 ### 📋 Groupes d'endpoints
-- **[AI Core](#-ai-core)** - Services IA principaux
-- **[Prompt Enhancement](#-prompt-enhancement)** - Amélioration des prompts
-- **[Image Analysis](#-image-analysis)** - Analyse d'images
-- **[Image Generation](#-image-generation)** - Génération d'images
-- **[Image Editing](#-image-editing)** - Édition d'images
-- **[Video Generation](#-video-generation)** - Génération de vidéos
-- **[Video-Image](#-video-image)** - Génération vidéo à partir d'images
-- **[Workflow](#-workflow)** - Orchestration de workflows
+
+> **🔄 ARCHITECTURE WORKFLOW-CENTRIC** - Le frontend utilise exclusivement les workflows pour le traitement IA
+
+- **[AI Core](#-ai-core)** - Services IA principaux (statut seulement)
+- **[Workflow](#-workflow)** - ⭐ **Point central** - Orchestration de workflows (traitement IA unifié)
+- **[Media](#-media)** - 🆕 **API Unifiée** - Gestion complète des médias
+- **[Collections](#-collections)** - Gestion des collections d'images
+- **[Templates](#-templates)** - Gestion des templates de workflows  
 - **[History](#-history)** - Historique des opérations
+
+
 
 ---
 
@@ -35,319 +43,14 @@ Vérifier le statut de l'API
 ```json
 {
   "status": "ok",
-  "timestamp": "2025-11-03T10:30:00.000Z",
-  "version": "1.0.0"
+  "timestamp": "2025-11-13T10:30:00.000Z",
+  "version": "2.0.0"
 }
 ```
 
-### POST `/prompt`
-Traiter un prompt avec images (endpoint principal)
 
-**Content-Type:** `multipart/form-data`
 
-**Parameters:**
-- `prompt` (string, required) - Le prompt à traiter
-- `images` (files[], optional) - Maximum 10 images (10MB par fichier)
 
-**Response:**
-```json
-{
-  "success": true,
-  "type": "image",
-  "resultUrl": "https://example.com/result.jpg",
-  "message": "Résultat généré pour: \"votre prompt\"",
-  "processedImages": 2,
-  "timestamp": "2025-11-03T10:30:00.000Z"
-}
-```
-
----
-
-## 🎯 Prompt Enhancement
-
-### POST `/prompt/enhance`
-Améliorer et optimiser un prompt
-
-**Content-Type:** `application/json`
-
-**Body:**
-```json
-{
-  "prompt": "un chat",
-  "style": "réaliste",
-  "language": "fr",
-  "enhancementLevel": "medium"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "originalPrompt": "un chat",
-  "enhancedPrompt": "Un chat domestique aux yeux verts, pelage tigré, assis gracieusement, éclairage naturel, style photographique réaliste, haute définition",
-  "improvements": ["Ajout de détails visuels", "Spécification du style"],
-  "confidence": 0.92,
-  "timestamp": "2025-11-03T10:30:00.000Z"
-}
-```
-
-### GET `/prompt/status`
-Statut du service d'amélioration des prompts
-
----
-
-## 🔍 Image Analysis
-
-### POST `/images/analyze-urls`
-Analyser des images depuis des URLs
-
-**Content-Type:** `application/json`
-
-**Body:**
-```json
-{
-  "imageUrls": [
-    "https://example.com/image1.jpg",
-    "https://example.com/image2.jpg"
-  ],
-  "analysisType": "comprehensive"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "url": "https://example.com/image1.jpg",
-      "description": "Un paysage montagneux au coucher du soleil",
-      "objects": ["montagne", "ciel", "nuages"],
-      "colors": ["orange", "bleu", "violet"],
-      "mood": "paisible",
-      "confidence": 0.95
-    }
-  ],
-  "totalAnalyzed": 2,
-  "timestamp": "2025-11-03T10:30:00.000Z"
-}
-```
-
-### POST `/images/analyze`
-Analyser une image uploadée
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `image` (file, required) - Image à analyser (max 10MB)
-- `analysisType` (string, optional) - Type d'analyse
-
-### POST `/images/analyze-upload`
-Analyser plusieurs images uploadées
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `images` (files[], required) - Maximum 10 images
-- `analysisType` (string, optional) - Type d'analyse
-
-### GET `/images/status`
-Statut du service d'analyse d'images
-
----
-
-## 🎨 Image Generation
-
-### POST `/generate/text-to-image`
-Générer une image à partir d'un texte
-
-**Content-Type:** `application/json`
-
-**Body:**
-```json
-{
-  "prompt": "Un paysage futuriste avec des gratte-ciels",
-  "style": "cyberpunk",
-  "width": 1024,
-  "height": 1024,
-  "steps": 50,
-  "guidance_scale": 7.5,
-  "seed": 42
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "imageUrl": "https://example.com/generated-image.jpg",
-  "prompt": "Un paysage futuriste avec des gratte-ciels",
-  "parameters": {
-    "width": 1024,
-    "height": 1024,
-    "steps": 50,
-    "guidance_scale": 7.5,
-    "seed": 42
-  },
-  "processingTime": 45.2,
-  "timestamp": "2025-11-03T10:30:00.000Z"
-}
-```
-
-### POST `/generate/img-to-img`
-Générer une image à partir d'une image source
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `image` (file, required) - Image source
-- `prompt` (string, required) - Description de la transformation
-- `strength` (number, optional) - Force de la transformation (0.1-1.0)
-
-### GET `/generate/status`
-Statut du service de génération d'images
-
-### GET `/generate/presets`
-Obtenir les presets de génération disponibles
-
-**Response:**
-```json
-{
-  "presets": [
-    {
-      "name": "Réaliste",
-      "style": "photorealistic",
-      "defaultSettings": {
-        "steps": 50,
-        "guidance_scale": 7.5
-      }
-    }
-  ]
-}
-```
-
----
-
-## ✂️ Image Editing
-
-### POST `/edit/image`
-Éditer plusieurs images
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `images` (files[], required) - Maximum 5 images
-- `operation` (string, required) - Type d'édition
-- `parameters` (string, optional) - Paramètres JSON
-
-### POST `/edit/single-image`
-Éditer une seule image
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `image` (file, required) - Image à éditer
-- `operation` (string, required) - Type d'édition
-- `parameters` (string, optional) - Paramètres JSON
-
-### POST `/edit/transfer-pose`
-Transférer la pose d'une image à une autre
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `sourceImage` (file, required) - Image source de la pose
-- `targetImage` (file, required) - Image cible
-
-### POST `/edit/transfer-style`
-Transférer le style d'une image à une autre
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `styleImage` (file, required) - Image source du style
-- `contentImage` (file, required) - Image de contenu
-
-### GET `/edit/status`
-Statut du service d'édition d'images
-
-### GET `/edit/examples`
-Exemples d'éditions disponibles
-
----
-
-## 🎬 Video Generation
-
-### POST `/video/generate`
-Générer une vidéo à partir d'un prompt
-
-**Content-Type:** `application/json`
-
-**Body:**
-```json
-{
-  "prompt": "Un chat qui joue dans un jardin",
-  "duration": 5,
-  "fps": 24,
-  "width": 1024,
-  "height": 576,
-  "style": "réaliste"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "videoUrl": "https://example.com/generated-video.mp4",
-  "prompt": "Un chat qui joue dans un jardin",
-  "duration": 5,
-  "resolution": "1024x576",
-  "fps": 24,
-  "processingTime": 120.5,
-  "timestamp": "2025-11-03T10:30:00.000Z"
-}
-```
-
-### POST `/video/generate-with-workflow`
-Générer une vidéo avec workflow personnalisé
-
-### GET `/video/workflows`
-Obtenir les workflows vidéo disponibles
-
-### GET `/video/status`
-Statut du service de génération vidéo
-
-### GET `/video/examples`
-Exemples de génération vidéo
-
----
-
-## 🎞️ Video-Image
-
-### POST `/video-image/generate`
-Générer une vidéo à partir d'images
-
-**Content-Type:** `multipart/form-data`
-
-**Parameters:**
-- `images` (files[], required) - Images sources
-- `firstFrame` (file, optional) - Première frame spécifique
-- `prompt` (string, required) - Description de la vidéo
-- `duration` (number, optional) - Durée en secondes
-
-### POST `/video-image/generate-with-workflow`
-Générer une vidéo avec workflow personnalisé
-
-### GET `/video-image/workflows`
-Workflows disponibles pour vidéo-image
-
-### GET `/video-image/status`
-Statut du service vidéo-image
-
-### GET `/video-image/examples`
-Exemples de génération vidéo-image
 
 ---
 
@@ -457,12 +160,31 @@ Vider le cache des workflows
 ```
 
 **Types de tâches supportées:**
+
+*Tâches IA principales:*
 - `enhance_prompt` - Amélioration de prompts (gemini-2.5-flash)
 - `describe_images` - Description d'images (llava-13b)
 - `generate_image` - Génération d'images (qwen-image)
 - `edit_image` - Édition d'images (qwen-image-edit-plus)
 - `generate_video_t2v` - Génération vidéo text-to-video (wan-2.2-t2v-fast)
 - `generate_video_i2v` - Génération vidéo image-to-video (wan-2.2-i2v-fast)
+- `generate_workflow` - Génération automatique de workflows
+
+*Tâches de traitement média:*
+- `image_resize_crop` - Redimensionnement et recadrage d'images
+- `video_extract_frame` - Extraction de frames depuis une vidéo
+- `video_concatenate` - Concaténation de vidéos
+
+*Tâches d'entrée/sortie:*
+- `input_text` / `text_input` - Entrée de texte
+- `text_output` - Sortie de texte
+- `image_input` - Entrée d'image
+- `image_output` - Sortie d'image
+- `video_output` - Sortie de vidéo
+- `input_images` - Entrée d'images multiples
+
+*Tâches spéciales:*
+- `camera_capture` - Capture depuis caméra
 
 **Response:**
 ```json
@@ -501,7 +223,308 @@ Vider le cache des workflows
 
 ---
 
-## 📚 History
+## 📡 Media
+
+API unifiée pour la gestion complète des médias (upload, listage, copie, suppression).
+
+
+
+### GET `/media`
+Lister tous les médias avec pagination
+
+**Query Parameters:**
+- `page` (number, optional) - Numéro de page (défaut: 1)
+- `limit` (number, optional) - Éléments par page (défaut: 20)
+- `type` (string, optional) - Filtrer par type (image, video)
+
+**Response:**
+```json
+{
+  "success": true,
+  "medias": [
+    {
+      "filename": "61a0b695-877b-4954-9b1d-5183dad5aec7.jpg",
+      "url": "/medias/61a0b695-877b-4954-9b1d-5183dad5aec7.jpg",
+      "mimeType": "image/jpeg",
+      "size": 245760,
+      "uploadedAt": "2025-11-13T09:30:55.017Z",
+      "type": "image"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 7,
+    "totalPages": 1
+  }
+}
+```
+
+### POST `/media/upload`
+Upload d'un ou plusieurs fichiers médias
+
+**Content-Type:** `multipart/form-data`
+
+**Parameters:**
+- `files` (files[], required) - Fichiers à uploader (max 10 fichiers, 50MB par fichier)
+
+**Response:**
+```json
+{
+  "success": true,
+  "uploaded": [
+    {
+      "filename": "image_abc123.jpg",
+      "originalName": "mon-image.jpg",
+      "url": "/medias/image_abc123.jpg",
+      "mimeType": "image/jpeg",
+      "size": 1024000,
+      "uploadedAt": "2025-11-13T10:30:00.000Z",
+      "type": "image"
+    }
+  ],
+  "count": 1
+}
+```
+
+### POST `/media/copy`
+Copier un média vers une collection
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "sourceUrl": "/medias/image_123.jpg",
+  "targetCollectionId": "col_abc456",
+  "description": "Copie du média"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "copiedMedia": {
+    "url": "/medias/image_123_copy.jpg",
+    "targetCollection": "col_abc456",
+    "copiedAt": "2025-11-13T10:30:00.000Z"
+  }
+}
+```
+
+### POST `/media/copy-batch`
+Copier plusieurs médias en lot (optimisé)
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "operations": [
+    {
+      "sourceUrl": "/medias/image_123.jpg",
+      "targetCollectionId": "col_abc456"
+    },
+    {
+      "sourceUrl": "/medias/image_124.jpg", 
+      "targetCollectionId": "col_abc789"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "sourceUrl": "/medias/image_123.jpg",
+      "copiedUrl": "/medias/image_123_copy.jpg",
+      "targetCollection": "col_abc456",
+      "status": "success"
+    }
+  ],
+  "totalProcessed": 2,
+  "successCount": 2,
+  "errorCount": 0
+}
+```
+
+### DELETE `/media/:filename`
+Supprimer un média
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Média supprimé avec succès",
+  "deletedFile": "image_abc123.jpg"
+}
+```
+
+
+
+---
+
+## 🗂️ Collections
+
+### GET `/collections/init`
+Initialiser le système de collections
+
+### GET `/collections/`
+Récupérer toutes les collections
+
+**Response:**
+```json
+{
+  "success": true,
+  "collections": [
+    {
+      "id": "col_abc123",
+      "name": "Ma Collection",
+      "description": "Collection d'images de test",
+      "imageCount": 15,
+      "createdAt": "2025-11-13T10:00:00.000Z",
+      "updatedAt": "2025-11-13T10:30:00.000Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET `/collections/:id`
+Récupérer une collection spécifique
+
+### POST `/collections/`
+Créer une nouvelle collection
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "name": "Nouvelle Collection",
+  "description": "Description de la collection"
+}
+```
+
+### PUT `/collections/:id`
+Mettre à jour une collection
+
+### DELETE `/collections/:id`
+Supprimer une collection
+
+### GET `/collections/current/info`
+Informations sur la collection courante
+
+### POST `/collections/current/set`
+Définir la collection courante
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "collectionId": "col_abc123"
+}
+```
+
+### POST `/collections/:id/images`
+Ajouter des images à une collection
+
+### POST `/collections/current/images`
+Ajouter des images à la collection courante
+
+### DELETE `/collections/:id/images/:imageUrl(*)`
+Supprimer une image d'une collection
+
+### PUT `/collections/:id/images/:imageUrl(*)`
+Mettre à jour une image dans une collection
+
+### GET `/collections/current/gallery`
+Récupérer la galerie de la collection courante
+
+### POST `/collections/:id/upload`
+Upload d'images directement dans une collection
+
+**Content-Type:** `multipart/form-data`
+
+**Parameters:**
+- `files` (files[], required) - Images à uploader (max 10)
+
+### POST `/collections/current/upload`
+Upload d'images dans la collection courante
+
+---
+
+## 📋 Templates
+
+### GET `/templates/`
+Récupérer tous les templates de workflows
+
+**Response:**
+```json
+{
+  "success": true,
+  "templates": [
+    {
+      "id": "tpl_abc123",
+      "name": "Génération d'Image Simple",
+      "description": "Template pour générer une image à partir d'un prompt",
+      "category": "image-generation",
+      "workflow": {...},
+      "createdAt": "2025-11-13T10:00:00.000Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET `/templates/:id`
+Récupérer un template spécifique
+
+### POST `/templates/`
+Créer un nouveau template
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "name": "Mon Template",
+  "description": "Description du template",
+  "category": "image-generation",
+  "workflow": {
+    "tasks": [...]
+  }
+}
+```
+
+### PUT `/templates/:id`
+Mettre à jour un template
+
+### DELETE `/templates/:id`
+Supprimer un template
+
+### POST `/templates/from-workflow`
+Créer un template à partir d'un workflow existant
+
+**Content-Type:** `application/json`
+
+**Body:**
+```json
+{
+  "workflowId": "wf_abc123",
+  "name": "Template depuis workflow",
+  "description": "Template créé automatiquement"
+}
+```
+
+---
+
+## �📚 History
 
 ### GET `/history/`
 Obtenir l'historique des opérations
@@ -599,26 +622,54 @@ HEADERS_TIMEOUT=620000
 
 ---
 
-## 🚀 Utilisation avec cURL
+## 🚀 Exemples d'Utilisation (Version 2.0)
 
-### Exemple de génération d'image
+### Nouvelle architecture - Workflow unifié
 ```bash
-curl -X POST http://localhost:3000/api/generate/text-to-image \
+# Génération d'image avec workflow
+curl -X POST http://localhost:3000/api/workflow/run \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "Un chat futuriste dans un paysage cyberpunk",
-    "width": 1024,
-    "height": 1024,
-    "steps": 50
+    "workflow": {
+      "tasks": [
+        {
+          "type": "generate_image", 
+          "inputs": {
+            "prompt": "Un chat futuriste dans un paysage cyberpunk",
+            "width": 1024,
+            "height": 1024
+          }
+        }
+      ]
+    }
   }'
 ```
 
-### Exemple d'upload d'image
+### Upload avec nouvelle API unifiée
 ```bash
-curl -X POST http://localhost:3000/api/images/analyze \
-  -F "image=@/path/to/image.jpg" \
-  -F "analysisType=comprehensive"
+# Upload de médias
+curl -X POST http://localhost:3000/api/media/upload \
+  -F "files=@/path/to/image1.jpg" \
+  -F "files=@/path/to/image2.jpg"
+
+# Listing des médias avec pagination
+curl "http://localhost:3000/api/media?page=1&limit=10&type=image"
 ```
+
+### Copie optimisée en lot
+```bash
+# Copie batch de médias (50% plus rapide)
+curl -X POST http://localhost:3000/api/media/copy-batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operations": [
+      {"sourceUrl": "/medias/img1.jpg", "targetCollectionId": "col_123"},
+      {"sourceUrl": "/medias/img2.jpg", "targetCollectionId": "col_456"}
+    ]
+  }'
+```
+
+
 
 ---
 
@@ -632,4 +683,35 @@ Tous les endpoints exposent des métriques de performance accessibles via les lo
 
 ---
 
-*Documentation générée le 3 novembre 2025 - Version API 1.0.0*
+---
+
+## ⚠️ Notes importantes
+
+### Authentification
+Actuellement, l'API ne nécessite pas d'authentification. En production, il est recommandé d'ajouter un système d'authentification approprié.
+
+### Rate Limiting
+Aucune limitation de taux n'est actuellement implémentée. En production, considérez l'ajout de rate limiting pour éviter les abus.
+
+### CORS
+Le serveur est configuré pour accepter les requêtes de toutes les origines. En production, configurez CORS de manière plus restrictive.
+
+### Environnement de développement vs Production
+- **Développement**: Mode mock activé si les clés API ne sont pas configurées
+- **Production**: Requiert les clés API Replicate pour le fonctionnement complet
+
+---
+
+---
+
+## 🔄 Historique des Modifications
+
+### Version 2.0.0 - 13 novembre 2025
+- **Architecture workflow-centric** - Point central pour tous les traitements IA
+- **API Media unifiée** - Gestion complète des médias avec opérations optimisées
+- **Backend simplifié** - Focus sur les endpoints réellement utilisés
+- **Performance améliorée** - Optimisation des opérations de copie média
+
+---
+
+*Documentation mise à jour le 13 novembre 2025 - **Version API 2.0.0***

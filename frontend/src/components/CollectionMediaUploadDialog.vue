@@ -131,7 +131,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useCollectionStore } from 'src/stores/useCollectionStore'
-import { uploadMediaService } from 'src/services/uploadMedia'
+import { mediaService } from 'src/services/mediaService'
 import { useQuasar } from 'quasar'
 
 // Props
@@ -214,7 +214,7 @@ function addFiles(files) {
     // Créer preview pour les images
     let previewUrl = null
     if (file.type.startsWith('image/')) {
-      previewUrl = uploadMediaService.createFilePreviewUrl(file)
+      previewUrl = mediaService.createFilePreviewUrl(file)
     }
     
     selectedFiles.value.push({
@@ -239,7 +239,7 @@ function removeFile(index) {
   
     // Nettoyer l'URL de preview
     if (fileInfo.previewUrl) {
-      uploadMediaService.revokeFilePreviewUrl(fileInfo.previewUrl)
+      mediaService.revokeFilePreviewUrl(fileInfo.previewUrl)
     }  selectedFiles.value.splice(index, 1)
 }
 
@@ -298,7 +298,7 @@ async function startUpload() {
     // Nettoyer les previews
     selectedFiles.value.forEach(fileInfo => {
       if (fileInfo.previewUrl) {
-        uploadMediaService.revokeFilePreviewUrl(fileInfo.previewUrl)
+        mediaService.revokeFilePreviewUrl(fileInfo.previewUrl)
       }
     })
     
@@ -363,7 +363,7 @@ function getFileColor(mimeType) {
 }
 
 function formatFileSize(bytes) {
-  return uploadMediaService.formatFileSize(bytes)
+  return mediaService.formatFileSize(bytes)
 }
 </script>
 

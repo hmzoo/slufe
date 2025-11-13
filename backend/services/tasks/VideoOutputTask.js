@@ -46,7 +46,6 @@ export class VideoOutputTask {
         controls: inputs.controls !== undefined ? inputs.controls : true,
         loop: inputs.loop !== undefined ? inputs.loop : false,
         status: 'success',
-        message: 'Vidéo prête pour l\'affichage',
         type: 'video' // Type pour le frontend
       };
       

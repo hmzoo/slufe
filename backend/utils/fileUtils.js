@@ -2,6 +2,45 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 
+// =============================================
+// CHEMINS CENTRALISÉS - Tous dans /data/
+// =============================================
+
+/**
+ * Retourne le dossier de base pour tous les données
+ */
+export function getDataDir() {
+  return path.join(process.cwd(), 'data');
+}
+
+/**
+ * Retourne le dossier des médias
+ */
+export function getMediasDir() {
+  return path.join(getDataDir(), 'medias');
+}
+
+/**
+ * Retourne le dossier des collections
+ */
+export function getCollectionsDir() {
+  return path.join(getDataDir(), 'collections');
+}
+
+/**
+ * Retourne le dossier des templates
+ */
+export function getTemplatesDir() {
+  return path.join(getDataDir(), 'templates');
+}
+
+/**
+ * Retourne le dossier des workflows
+ */
+export function getWorkflowsDir() {
+  return path.join(getDataDir(), 'workflows');
+}
+
 /**
  * Génère un nom de fichier unique basé sur UUID
  * @param {string} originalExtension - Extension du fichier (avec ou sans point)
@@ -51,7 +90,7 @@ export function getFileExtension(filename) {
  * @returns {boolean} True si le fichier existe
  */
 export function mediaFileExists(filename) {
-  const filePath = path.join(process.cwd(), 'medias', filename);
+  const filePath = path.join(getMediasDir(), filename);
   return fs.existsSync(filePath);
 }
 
@@ -61,7 +100,7 @@ export function mediaFileExists(filename) {
  * @returns {string} Chemin complet
  */
 export function getMediaFilePath(filename) {
-  return path.join(process.cwd(), 'medias', filename);
+  return path.join(getMediasDir(), filename);
 }
 
 /**
@@ -91,17 +130,9 @@ export function saveMediaFile(filename, buffer) {
   // Écrire le fichier
   fs.writeFileSync(filePath, buffer);
   
-  // Construire l'URL pour l'accès HTTP
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  const host = process.env.HOST || 'localhost';
-  const port = process.env.PORT || 3000;
-  const baseUrl = process.env.NODE_ENV === 'production' 
-    ? `${protocol}://${host}` 
-    : `${protocol}://${host}:${port}`;
-    
   return {
     filename: filename,
     filePath: filePath,
-    url: `${baseUrl}/medias/${filename}`
+    url: `/medias/${filename}`  // URL relative cohérente avec le reste du système
   };
 }

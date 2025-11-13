@@ -1,15 +1,53 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from 'src/boot/axios'
-import { uploadMediaService } from 'src/services/uploadMedia'
+import { mediaService } from 'src/services/mediaService'
 
 export const useCollectionStore = defineStore('collections', () => {
+  // Clés localStorage pour la persistance
+  const STORAGE_KEYS = {
+    CURRENT_COLLECTION_ID: 'slufe_current_collection_id',
+    DEFAULT_COLLECTION_ID: 'slufe_default_collection_id'
+  }
+
+  // Fonctions utilitaires localStorage
+  const saveCurrentCollectionToStorage = (collectionId) => {
+    try {
+      if (collectionId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_COLLECTION_ID, collectionId)
+        // Aussi sauvegarder comme collection par défaut
+        localStorage.setItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID, collectionId)
+      }
+    } catch (e) {
+      console.warn('Impossible de sauvegarder la collection dans localStorage:', e)
+    }
+  }
+
+  const getCurrentCollectionFromStorage = () => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.CURRENT_COLLECTION_ID)
+    } catch (e) {
+      console.warn('Impossible de lire la collection depuis localStorage:', e)
+      return null
+    }
+  }
+
+  const getDefaultCollectionFromStorage = () => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID)
+    } catch (e) {
+      console.warn('Impossible de lire la collection par défaut depuis localStorage:', e)
+      return null
+    }
+  }
   // State - Collections
   const collections = ref([])
   const currentCollection = ref(null) // Collection actuellement visualisée
   const serverCurrentCollection = ref(null) // Collection active sur le serveur
+  const defaultCollection = ref(null) // Collection par défaut pour la première visite
   const loading = ref(false)
   const error = ref(null)
+  const initialized = ref(false) // Flag pour éviter les doubles initialisations
 
   // State - Session temporaire (médias pas encore dans collections)
   const sessionMedias = ref(new Map())
@@ -59,6 +97,52 @@ export const useCollectionStore = defineStore('collections', () => {
   const totalSize = computed(() => 
     allMedias.value.reduce((sum, m) => sum + (m.size || 0), 0)
   )
+
+  // Collection active avec fallback
+  const activeCollection = computed(() => {
+    // 1. Prioriser la collection couramment visualisée
+    if (currentCollection.value) {
+      return currentCollection.value
+    }
+    
+    // 2. Sinon utiliser la collection active du serveur
+    if (serverCurrentCollection.value) {
+      return serverCurrentCollection.value
+    }
+    
+    // 3. Sinon essayer la première collection disponible
+    if (collections.value.length > 0) {
+      return collections.value[0]
+    }
+    
+    return null
+  })
+
+  // ID de la collection active
+  const activeCollectionId = computed(() => activeCollection.value?.id || null)
+
+  // Collection par défaut (pour nouvelle visite)
+  const defaultCollectionComputed = computed(() => {
+    // 1. Si définie explicitement
+    if (defaultCollection.value) {
+      const found = collections.value.find(c => c.id === defaultCollection.value)
+      if (found) return found
+    }
+    
+    // 2. Sinon la collection active du serveur
+    if (serverCurrentCollection.value) {
+      return serverCurrentCollection.value
+    }
+    
+    // 3. Sinon la première collection disponible
+    if (collections.value.length > 0) {
+      return collections.value[0]
+    }
+    
+    return null
+  })
+
+  const defaultCollectionId = computed(() => defaultCollectionComputed.value?.id || null)
 
   // Actions
   const fetchCollections = async () => {
@@ -138,10 +222,14 @@ export const useCollectionStore = defineStore('collections', () => {
         // 2. Mettre à jour la collection active du serveur
         serverCurrentCollection.value = response.data.currentCollection
         
-        // 3. Recharger les détails complets de la collection avec ses médias pour l'affichage
+        // 3. Sauvegarder dans localStorage pour persistance
+        saveCurrentCollectionToStorage(collectionId)
+        
+        // 4. Recharger les détails complets de la collection avec ses médias pour l'affichage
         const detailedCollection = await fetchCollectionById(collectionId)
         currentCollection.value = detailedCollection
         
+        console.log('✅ Collection active définie et sauvegardée:', collectionId)
         return detailedCollection
       } else {
         throw new Error('Erreur lors de la définition de la collection courante')
@@ -150,6 +238,28 @@ export const useCollectionStore = defineStore('collections', () => {
       error.value = err.message
       console.error('Erreur setCurrentCollection:', err)
       throw err
+    }
+  }
+
+  // Définir la collection par défaut pour les nouvelles visites
+  const setDefaultCollection = (collectionId) => {
+    try {
+      if (collectionId) {
+        const exists = collections.value.find(c => c.id === collectionId)
+        if (exists) {
+          defaultCollection.value = collectionId
+          localStorage.setItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID, collectionId)
+          console.log('🏠 Collection par défaut définie:', collectionId)
+        } else {
+          console.warn('⚠️ Collection par défaut inexistante:', collectionId)
+        }
+      } else {
+        defaultCollection.value = null
+        localStorage.removeItem(STORAGE_KEYS.DEFAULT_COLLECTION_ID)
+        console.log('🏠 Collection par défaut réinitialisée')
+      }
+    } catch (e) {
+      console.warn('Impossible de sauvegarder la collection par défaut:', e)
     }
   }
 
@@ -211,6 +321,27 @@ export const useCollectionStore = defineStore('collections', () => {
       // Si c'était la collection courante, la réinitialiser
       if (currentCollection.value?.id === collectionId) {
         currentCollection.value = null
+      }
+      
+      // Si c'était la collection par défaut, la réinitialiser
+      if (defaultCollection.value === collectionId) {
+        setDefaultCollection(null)
+        console.log('🧹 Collection par défaut supprimée:', collectionId)
+      }
+      
+      // Si c'était la collection active, nettoyer localStorage
+      const storedCollectionId = getCurrentCollectionFromStorage()
+      if (storedCollectionId === collectionId) {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID)
+        console.log('🧹 Collection supprimée du localStorage:', collectionId)
+        
+        // Essayer de définir une nouvelle collection par défaut
+        if (collections.value.length > 0) {
+          const newDefaultCollection = collections.value[0]
+          console.log('🎯 Nouvelle collection par défaut:', newDefaultCollection.id)
+          setDefaultCollection(newDefaultCollection.id)
+          await setCurrentCollection(newDefaultCollection.id)
+        }
       }
       
       return true
@@ -298,9 +429,85 @@ export const useCollectionStore = defineStore('collections', () => {
     ])
   }
 
+  // Fonction pour initialiser la collection active
+  const initializeCurrentCollection = async () => {
+    try {
+      console.log('🔄 Initialisation de la collection active...')
+      
+      // 1. Essayer de récupérer la collection active depuis le serveur
+      await fetchCurrentCollection()
+      
+      // 2. Si aucune collection active sur le serveur, essayer depuis localStorage
+      if (!serverCurrentCollection.value) {
+        const storedCollectionId = getCurrentCollectionFromStorage()
+        console.log('📱 Collection stockée localement:', storedCollectionId)
+        
+        if (storedCollectionId) {
+          try {
+            // Vérifier que la collection existe encore
+            const detailedCollection = await fetchCollectionById(storedCollectionId)
+            if (detailedCollection) {
+              console.log('✅ Restauration de la collection depuis localStorage:', storedCollectionId)
+              await setCurrentCollection(storedCollectionId)
+              // Aussi définir comme défaut
+              setDefaultCollection(storedCollectionId)
+              return
+            }
+          } catch (e) {
+            console.warn('⚠️ Collection stockée introuvable, nettoyage localStorage')
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID)
+          }
+        }
+      }
+      
+      // 3. Si toujours pas de collection active, prendre la première disponible comme défaut
+      if (!serverCurrentCollection.value && collections.value.length > 0) {
+        const firstCollection = collections.value[0]
+        console.log('🎯 Définition de la collection par défaut:', firstCollection.id)
+        setDefaultCollection(firstCollection.id)
+        await setCurrentCollection(firstCollection.id)
+      }
+      
+      // 4. Si aucune collection n'existe, l'utilisateur devra en créer une
+      if (collections.value.length === 0) {
+        console.log('📝 Aucune collection disponible - l\'utilisateur devra en créer une')
+      }
+      
+    } catch (err) {
+      console.error('❌ Erreur lors de l\'initialisation de la collection active:', err)
+    }
+  }
+
   // Fonction pour initialiser le store
   const initialize = async () => {
-    await refreshAll()
+    if (initialized.value) {
+      console.log('⏩ Store collections déjà initialisé, ignoré')
+      return
+    }
+
+    try {
+      initialized.value = true
+      console.log('🚀 Initialisation du store collections...')
+      
+      // 0. Charger la collection par défaut depuis localStorage
+      const storedDefaultCollectionId = getDefaultCollectionFromStorage()
+      if (storedDefaultCollectionId) {
+        defaultCollection.value = storedDefaultCollectionId
+        console.log('🏠 Collection par défaut restaurée depuis localStorage:', storedDefaultCollectionId)
+      }
+      
+      // 1. Charger toutes les collections
+      await refreshAll()
+      
+      // 2. Initialiser la collection active
+      await initializeCurrentCollection()
+      
+      console.log('✅ Store collections initialisé')
+    } catch (err) {
+      initialized.value = false // Permettre de réessayer en cas d'erreur
+      console.error('❌ Erreur lors de l\'initialisation du store collections:', err)
+      throw err
+    }
   }
 
   // Sélection de médias pour workflows
@@ -338,13 +545,13 @@ export const useCollectionStore = defineStore('collections', () => {
 
   // ========== NOUVELLES FONCTIONNALITÉS: GESTION MÉDIAS SESSION ==========
 
-  // Actions - Upload vers session temporaire
+  // Actions - Upload vers session temporaire (API unifiée)
   const uploadSingle = async (file) => {
     try {
       sessionLoading.value = true
       sessionError.value = null
       
-      const result = await uploadMediaService.uploadSingle(file)
+      const result = await mediaService.upload(file)
       
       if (result.success && result.media) {
         const media = {
@@ -372,7 +579,7 @@ export const useCollectionStore = defineStore('collections', () => {
       sessionLoading.value = true
       sessionError.value = null
       
-      const result = await uploadMediaService.uploadMultiple(files)
+      const result = await mediaService.upload(files)
       
       if (result.success) {
         const uploadedMedias = result.uploaded.map(mediaInfo => {
@@ -501,11 +708,114 @@ export const useCollectionStore = defineStore('collections', () => {
     )
   }
 
+  // ==========================================
+  // Nouvelles méthodes optimisées (API unifiée)
+  // ==========================================
+
+  /**
+   * Copie un média vers une collection de manière optimisée (1 requête)
+   * @param {string} sourceUrl - URL du média source
+   * @param {string} targetCollectionId - ID collection destination
+   * @param {string} description - Description optionnelle
+   */
+  const copyMediaToCollection = async (sourceUrl, targetCollectionId, description = '') => {
+    try {
+      const result = await mediaService.copy(sourceUrl, targetCollectionId, description)
+      
+      if (result.success) {
+        // Recharger collections pour refléter les changements
+        await fetchCollections()
+        return result
+      } else {
+        throw new Error(result.error || 'Erreur lors de la copie')
+      }
+    } catch (err) {
+      error.value = err.message
+      console.error('Erreur copyMediaToCollection:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Copie multiple optimisée de médias vers collections (batch)
+   * @param {Array} operations - [{sourceUrl, targetCollectionId, description}]
+   */
+  const copyMediasBatchToCollections = async (operations) => {
+    try {
+      const result = await mediaService.copyBatch(operations)
+      
+      if (result.success) {
+        // Recharger collections pour refléter les changements
+        await fetchCollections()
+        return result
+      } else {
+        throw new Error(result.error || 'Erreur lors de la copie batch')
+      }
+    } catch (err) {
+      error.value = err.message
+      console.error('Erreur copyMediasBatchToCollections:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Déplacement optimisé de médias entre collections
+   * @param {Array} mediaUrls - URLs des médias à déplacer
+   * @param {string} sourceCollectionId - ID collection source
+   * @param {string} targetCollectionId - ID collection destination
+   */
+  const moveMediasBetweenCollections = async (mediaUrls, sourceCollectionId, targetCollectionId) => {
+    try {
+      // 1. Copier vers destination (batch optimisé)
+      const operations = mediaUrls.map(url => ({
+        sourceUrl: url,
+        targetCollectionId: targetCollectionId
+      }))
+      
+      const copyResult = await mediaService.copyBatch(operations)
+      
+      if (!copyResult.success) {
+        throw new Error('Erreur lors de la copie')
+      }
+      
+      // 2. Supprimer de la collection source (si différente de destination)
+      if (sourceCollectionId !== targetCollectionId) {
+        for (const mediaUrl of mediaUrls) {
+          try {
+            // Extraire l'ID du média depuis l'URL
+            const mediaId = mediaUrl.split('/').pop()?.split('.')[0]
+            if (mediaId) {
+              await removeMediaFromCollection(sourceCollectionId, mediaId)
+            }
+          } catch (removeErr) {
+            console.warn('Erreur suppression média source:', removeErr)
+          }
+        }
+      }
+      
+      // 3. Recharger collections
+      await fetchCollections()
+      
+      return {
+        success: true,
+        moved: copyResult.summary.successful_copies,
+        failed: copyResult.summary.failed_copies,
+        details: copyResult
+      }
+      
+    } catch (err) {
+      error.value = err.message
+      console.error('Erreur moveMediasBetweenCollections:', err)
+      throw err
+    }
+  }
+
   // Fonction pour réinitialiser le store
   const reset = () => {
     collections.value = []
     currentCollection.value = null
     serverCurrentCollection.value = null
+    defaultCollection.value = null
     loading.value = false
     error.value = null
     selectedMediasForWorkflow.value = []
@@ -513,6 +823,7 @@ export const useCollectionStore = defineStore('collections', () => {
     sessionMedias.value.clear()
     sessionLoading.value = false
     sessionError.value = null
+    initialized.value = false // Permettre une nouvelle initialisation
   }
 
   return {
@@ -520,8 +831,10 @@ export const useCollectionStore = defineStore('collections', () => {
     collections,
     currentCollection,
     serverCurrentCollection,
+    defaultCollection,
     loading,
     error,
+    initialized,
 
     // State - Session
     sessionMedias,
@@ -537,6 +850,10 @@ export const useCollectionStore = defineStore('collections', () => {
     hasCurrentCollection,
     currentCollectionMedias,
     currentCollectionStats,
+    activeCollection,
+    activeCollectionId,
+    defaultCollectionComputed,
+    defaultCollectionId,
 
     // Getters - Médias globaux
     allMedias,
@@ -552,6 +869,7 @@ export const useCollectionStore = defineStore('collections', () => {
     fetchCollectionById,
     viewCollection,
     setCurrentCollection,
+    setDefaultCollection,
     createCollection,
     updateCollection,
     deleteCollection,
@@ -561,6 +879,11 @@ export const useCollectionStore = defineStore('collections', () => {
     // Actions - Session & Upload
     uploadSingle,
     uploadMultiple,
+    
+    // Actions - Copy/Move optimisées (API unifiée)
+    copyMediaToCollection,
+    copyMediasBatchToCollections,
+    moveMediasBetweenCollections,
     getMedia,
     useMedia,
     moveToCollection,
@@ -580,9 +903,15 @@ export const useCollectionStore = defineStore('collections', () => {
     selectAllMediasForWorkflow,
     clearWorkflowSelection,
     
-    // Initialisation
+    // Initialisation et collection active
     refreshAll,
     initialize,
-    reset
+    initializeCurrentCollection,
+    reset,
+    
+    // Fonctions utilitaires collection active
+    saveCurrentCollectionToStorage,
+    getCurrentCollectionFromStorage,
+    getDefaultCollectionFromStorage
   }
 })

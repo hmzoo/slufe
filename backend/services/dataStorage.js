@@ -2,7 +2,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import { saveWorkflowFile, getMediaPath } from '../utils/mediaUtils.js';
+import { 
+  getDataDir, 
+  getMediasDir, 
+  getWorkflowsDir, 
+  getCollectionsDir, 
+  getTemplatesDir 
+} from '../utils/fileUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,16 +40,18 @@ export function generateOperationId() {
  */
 export async function initializeStorage() {
   const operationsDir = path.join(DATA_ROOT, 'operations');
-  const workflowsDir = path.join(DATA_ROOT, 'workflows');
-  const mediasDir = path.join(process.cwd(), 'medias');
-  const publicWorkflowsDir = path.join(process.cwd(), 'workflows');
+  const workflowsDir = getWorkflowsDir();
+  const mediasDir = getMediasDir();
+  const collectionsDir = getCollectionsDir();
+  const templatesDir = getTemplatesDir();
   
   try {
     await fs.mkdir(DATA_ROOT, { recursive: true });
     await fs.mkdir(operationsDir, { recursive: true });
     await fs.mkdir(workflowsDir, { recursive: true });
     await fs.mkdir(mediasDir, { recursive: true });
-    await fs.mkdir(publicWorkflowsDir, { recursive: true });
+    await fs.mkdir(collectionsDir, { recursive: true });
+    await fs.mkdir(templatesDir, { recursive: true });
     console.log('✅ Dossiers de stockage initialisés:', DATA_ROOT);
   } catch (error) {
     console.error('❌ Erreur initialisation stockage:', error);
@@ -375,7 +383,7 @@ export async function saveWorkflowExecution(workflowExecution) {
 
   try {
     // Créer un dossier spécifique pour ce workflow
-    const workflowDir = path.join(DATA_ROOT, 'workflows', operationId);
+    const workflowDir = path.join(getWorkflowsDir(), operationId);
     await fs.mkdir(workflowDir, { recursive: true });
 
     // 1. Sauvegarder le workflow JSON avec ID unique en préfixe
@@ -577,7 +585,7 @@ export async function saveWorkflowExecution(workflowExecution) {
 
 // Fonction helper pour télécharger avec nom personnalisé
 async function downloadAndSaveResultCustom(url, operationId, filename) {
-  const workflowDir = path.join(DATA_ROOT, 'workflows', operationId);
+  const workflowDir = path.join(getWorkflowsDir(), operationId);
   const filepath = path.join(workflowDir, filename);
   
   try {

@@ -44,7 +44,6 @@ export class ImageOutputTask {
         caption: inputs.caption || '',
         width: inputs.width || 'medium',
         status: 'success',
-        message: 'Image prête pour l\'affichage',
         type: 'image' // Type pour le frontend
       };
       

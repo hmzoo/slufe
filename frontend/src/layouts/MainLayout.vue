@@ -13,6 +13,10 @@
           <q-tooltip>Historique des workflows</q-tooltip>
         </q-btn>
 
+        <q-btn flat round dense icon="bug_report" to="/debug-collections">
+          <q-tooltip>Debug Collections</q-tooltip>
+        </q-btn>
+
         <q-btn flat round dense icon="help_outline" @click="showHelp">
           <q-tooltip>Guide des workflows</q-tooltip>
         </q-btn>
@@ -36,9 +40,31 @@
 <script setup>
 import { useQuasar } from 'quasar'
 import { useWorkflowStore } from 'src/stores/useWorkflowStore'
+import { useCollectionStore } from 'src/stores/useCollectionStore'
+import { onMounted } from 'vue'
 
 const $q = useQuasar()
 const workflowStore = useWorkflowStore()
+const collectionStore = useCollectionStore()
+
+// Initialisation des stores au démarrage
+onMounted(async () => {
+  try {
+    console.log('🚀 Initialisation de l\'application...')
+    
+    // Initialiser le store des collections (qui gère la persistance localStorage)
+    await collectionStore.initialize()
+    
+    console.log('✅ Application initialisée')
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation:', error)
+    $q.notify({
+      type: 'warning',
+      message: 'Erreur lors du chargement des collections',
+      caption: 'Certaines fonctionnalités peuvent être indisponibles'
+    })
+  }
+})
 
 function showHistory() {
   $q.dialog({

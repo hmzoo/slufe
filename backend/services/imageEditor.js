@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { EDIT_DEFAULTS, IMAGE_DEFAULTS } from '../config/defaults.js';
 import { addImageToCurrentCollection } from './collectionManager.js';
-import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName, getMediasDir } from '../utils/fileUtils.js';
 
 // Calculer __dirname pour les modules ES
 const __filename = fileURLToPath(import.meta.url);
@@ -231,8 +231,10 @@ export async function editImage({
       if (typeof img === 'string' && img.startsWith('/medias/')) {
         console.log(`📁 Lecture du fichier local ${index + 1}: ${img}`);
         try {
-          // Construire le chemin absolu vers le fichier
-          const fullPath = path.join(__dirname, '..', img);
+          // Construire le chemin absolu vers le fichier en utilisant getMediasDir()
+          const mediasDir = getMediasDir();
+          const filename = img.replace('/medias/', '');
+          const fullPath = path.join(mediasDir, filename);
           console.log(`📂 Chemin complet: ${fullPath}`);
           
           // Lire le fichier

@@ -1,5 +1,5 @@
 import { generateImage } from '../imageGenerator.js';
-import { saveMediaFile, getFileExtension } from '../../utils/fileUtils.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../../utils/fileUtils.js';
 
 /**
  * Service de tâche pour la génération d'images
@@ -89,7 +89,7 @@ export class GenerateImageTask {
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const extension = getFileExtension(response.headers.get('content-type') || 'image/png');
-      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+      const filename = generateUniqueFileName(extension);
       const savedFile = saveMediaFile(filename, buffer);
       
       global.logWorkflow(`💾 Image sauvegardée localement`, {

@@ -6,6 +6,15 @@
                 <div class="text-h5 q-mb-sm">
                     <q-icon name="build" class="q-mr-sm" />
                     Workflow Builder
+                    <q-chip 
+                        v-if="currentWorkflow.name" 
+                        color="primary" 
+                        text-color="white"
+                        icon="label"
+                        class="q-ml-md"
+                    >
+                        {{ currentWorkflow.name }}
+                    </q-chip>
                 </div>
                 <div class="text-body2 text-grey-7">
                     Créez et configurez vos workflows personnalisés
@@ -409,12 +418,37 @@
                     Actions
                 </div>
 
+                <!-- Champ de saisie du nom du workflow -->
+                <q-input
+                    v-model="currentWorkflow.name"
+                    label="Nom du workflow"
+                    outlined
+                    dense
+                    class="q-mb-md"
+                    :hint="currentWorkflow.name ? '' : 'Donnez un nom à votre workflow'"
+                >
+                    <template #prepend>
+                        <q-icon name="label" />
+                    </template>
+                    <template #append>
+                        <q-icon 
+                            v-if="currentWorkflow.name"
+                            name="clear"
+                            class="cursor-pointer"
+                            @click="currentWorkflow.name = ''"
+                        />
+                    </template>
+                </q-input>
+
                 <div class="q-gutter-sm">
                     <q-btn color="primary" icon="play_arrow" label="Exécuter" @click="executeWorkflow"
                         :loading="isExecuting" :disable="!canExecuteWorkflow" class="full-width" />
 
                     <q-btn color="secondary" icon="save" label="Sauvegarder" @click="saveWorkflow" outline
                         class="full-width" />
+
+                    <q-btn color="info" icon="save_as" label="Sauvegarder comme template" @click="saveAsTemplate" outline
+                        class="full-width" :disable="!canExecuteWorkflow" />
 
                     <q-btn color="grey-7" icon="clear" label="Vider" @click="clearWorkflow" outline
                         class="full-width" />
@@ -749,12 +783,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useWorkflowStore } from 'src/stores/useWorkflowStore'
+import { useTemplateStore } from 'src/stores/useTemplateStore'
 import { useCollectionStore } from 'src/stores/useCollectionStore'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 
 // Stores
 const collectionStore = useCollectionStore()
+const templateStore = useTemplateStore()
 
 // Émissions
 const emit = defineEmits(['openCollections', 'openBuilder', 'loadWorkflow'])
@@ -1517,6 +1553,73 @@ const saveWorkflow = () => {
     })
 }
 
+const saveAsTemplate = () => {
+    const currentName = currentWorkflow.value.name || 'Nouveau workflow'
+    
+    // Dialog pour demander les informations du template
+    $q.dialog({
+        title: 'Sauvegarder comme template',
+        message: 'Créer un template réutilisable à partir de ce workflow',
+        prompt: {
+            model: currentName + ' (Template)',
+            isValid: val => val && val.length > 0,
+            type: 'text',
+            label: 'Nom du template *'
+        },
+        ok: {
+            label: 'Créer template',
+            color: 'primary'
+        },
+        cancel: {
+            label: 'Annuler',
+            color: 'grey'
+        }
+    }).onOk(async (templateName) => {
+        try {
+            if (!templateName.trim()) {
+                $q.notify({
+                    type: 'negative',
+                    message: 'Le nom du template est requis',
+                    position: 'top'
+                })
+                return
+            }
+
+            // Migrer le workflow au format v2 avant de le sauvegarder comme template
+            const migratedWorkflow = migrateWorkflowToV2(currentWorkflow.value)
+
+            // Créer le template à partir du workflow
+            const templateData = {
+                name: templateName.trim(),
+                description: '',
+                category: 'custom',
+                icon: 'dashboard',
+                workflow: migratedWorkflow,
+                originalWorkflowId: currentWorkflow.value.id || null,
+                tags: []
+            }
+            
+            await templateStore.createTemplate(templateData)
+            
+            $q.notify({
+                type: 'positive',
+                message: `Template "${templateName}" créé avec succès`,
+                caption: 'Les inputs et outputs ont été vidés pour réutilisation',
+                position: 'top',
+                timeout: 3000
+            })
+        } catch (error) {
+            console.error('Erreur création template:', error)
+            $q.notify({
+                type: 'negative',
+                message: 'Erreur lors de la création du template',
+                caption: error.message,
+                position: 'top'
+            })
+        }
+    })
+}
+
 const clearWorkflow = () => {
     currentWorkflow.value = {
         inputs: [],
@@ -1538,13 +1641,19 @@ onMounted(() => {
     // Charger le workflow persisté depuis le store
     const persistedWorkflow = workflowStore.getCurrentBuilderWorkflow()
     
-    if (persistedWorkflow && persistedWorkflow.workflow) {
+    if (persistedWorkflow) {
         console.log('WorkflowBuilder: Chargement du workflow persisté:', persistedWorkflow)
+        
+        // Gérer les deux formats de workflow:
+        // Format 1: { workflow: { name, inputs, tasks, outputs } } (ancien format)
+        // Format 2: { name, inputs, tasks, outputs } (nouveau format direct)
+        const workflowData = persistedWorkflow.workflow || persistedWorkflow
+        
         currentWorkflow.value = {
-            name: persistedWorkflow.workflow.name || persistedWorkflow.name || 'Workflow en cours',
-            inputs: persistedWorkflow.workflow.inputs || [],
-            tasks: persistedWorkflow.workflow.tasks || [],
-            outputs: persistedWorkflow.workflow.outputs || []
+            name: workflowData.name || 'Workflow en cours',
+            inputs: workflowData.inputs || [],
+            tasks: workflowData.tasks || [],
+            outputs: workflowData.outputs || []
         }
         
         $q.notify({

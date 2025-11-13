@@ -1,29 +1,11 @@
 import express from 'express';
 import multer from 'multer';
 import crypto from 'crypto';
-import {
-  analyzeWorkflow,
-  getWorkflowExamples,
-  AVAILABLE_WORKFLOWS
-} from '../services/workflowAnalyzer.js';
-import {
-  executeMultiStepWorkflow,
-  isMultiStepWorkflow,
-  getMultiStepWorkflow
-} from '../services/workflowOrchestrator.js';
 
-// Import des services pour exécution automatique
-import { enhancePrompt } from '../services/promptEnhancer.js';
-import { generateImage } from '../services/imageGenerator.js';
-import { editSingleImage, editImage } from '../services/imageEditor.js';
-import { generateVideo } from '../services/videoGenerator.js';
-import { generateVideoFromImage } from '../services/videoImageGenerator.js';
-import { analyzeImage } from '../services/imageAnalyzer.js';
-import { saveCompleteOperation, saveWorkflowExecution } from '../services/dataStorage.js';
-
-// Import du nouveau système de workflows
+// Import du nouveau système de workflows uniquement
 import WorkflowRunner from '../services/WorkflowRunner.js';
 import uploadMediaService from '../services/uploadMedia.js';
+import { getMediasDir } from '../utils/fileUtils.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -48,295 +30,148 @@ async function resolveMediaIds(workflow, inputs) {
     // Parcourir toutes les tâches pour trouver les IDs de médias
     for (const task of workflow.tasks) {
       global.logWorkflow(`🔍 Analyse tâche: ${task.id}`, {
-        taskType: task.type,
-        hasInput: !!task.input,
-        inputKeys: task.input ? Object.keys(task.input) : []
+        type: task.type,
+        inputs: Object.keys(task.inputs || {})
       });
       
-      if (task.input) {
-        for (const [key, value] of Object.entries(task.input)) {
-          global.logWorkflow(`🔍 Analyse input: ${key}`, {
-            valueType: typeof value,
-            isArray: Array.isArray(value),
-            value: value
-          });
-          // Vérifier si c'est un ID de média (UUID ou collection)
-          if (typeof value === 'string' && (
-            value.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) || 
-            value.startsWith('collection_')
-          )) {
-            try {
-              let mediaInfo;
+      if (task.inputs) {
+        // Analyser chaque input de la tâche
+        for (const [inputKey, inputValue] of Object.entries(task.inputs)) {
+          // Vérifier si c'est une référence à un input global
+          if (typeof inputValue === 'string' && inputValue.startsWith('{{input.')) {
+            const inputRef = inputValue.replace(/{{input\.(.+)}}/, '$1');
+            const inputData = inputs[inputRef];
+            
+            global.logWorkflow(`🔍 Référence input détectée: ${inputRef}`, {
+              inputValue,
+              hasInputData: !!inputData,
+              inputDataType: typeof inputData
+            });
+            
+            if (inputData && Array.isArray(inputData)) {
+              // C'est un array d'IDs de médias
+              const resolvedFiles = [];
               
-              if (value.startsWith('collection_')) {
-                // Résolution depuis les collections
-                const collectionManager = await import('../services/collectionManager.js');
-                const currentCollection = await collectionManager.getCurrentCollection();
-                
-                if (currentCollection && currentCollection.images) {
-                  // Extraire l'index depuis l'ID (format: collection_0, collection_1, etc.)
-                  const indexMatch = value.match(/collection_(\d+)/);
-                  if (indexMatch) {
-                    const index = parseInt(indexMatch[1]);
-                    const img = currentCollection.images[index];
+              for (const mediaId of inputData) {
+                if (typeof mediaId === 'string') {
+                  const filePath = path.join(getMediasDir(), mediaId);
+                  
+                  try {
+                    await fs.access(filePath);
+                    const buffer = await fs.readFile(filePath);
                     
-                    if (img && img.url) {
-                      // Construire le chemin du fichier depuis l'URL
-                      const filename = img.url.split('/').pop();
-                      const mediaPath = path.join(process.cwd(), 'medias', filename);
-                      
-                      mediaInfo = {
-                        id: `collection_${index}`,
-                        originalName: img.description || filename,
-                        filename: filename,
-                        mimetype: img.type === 'video' ? 'video/mp4' : 'image/jpeg',
-                        type: img.type || 'image',
-                        url: img.url,
-                        path: mediaPath
-                      };
-                      
-                      global.logWorkflow(`📚 Résolution média collection: ${value}`, {
-                        index: index,
-                        url: img.url,
-                        type: mediaInfo.type
-                      });
-                    }
+                    resolvedFiles.push({
+                      buffer: buffer,
+                      originalname: mediaId,
+                      mimetype: mediaId.toLowerCase().includes('.jpg') || mediaId.toLowerCase().includes('.jpeg') 
+                        ? 'image/jpeg' 
+                        : mediaId.toLowerCase().includes('.png') 
+                          ? 'image/png' 
+                          : 'image/jpeg'
+                    });
+                    
+                    // Garder aussi un mapping direct UUID -> fichier
+                    mediaFiles[mediaId] = {
+                      buffer: buffer,
+                      originalname: mediaId,
+                      mimetype: mediaId.toLowerCase().includes('.jpg') || mediaId.toLowerCase().includes('.jpeg') 
+                        ? 'image/jpeg' 
+                        : mediaId.toLowerCase().includes('.png') 
+                          ? 'image/png' 
+                          : 'image/jpeg'
+                    };
+                    
+                    global.logWorkflow(`✅ Fichier résolu: ${mediaId}`, {
+                      path: filePath,
+                      size: buffer.length
+                    });
+                  } catch (error) {
+                    global.logWorkflow(`❌ Erreur lecture fichier ${mediaId}:`, error.message);
                   }
                 }
-              } else {
-                // Résolution UUID classique
-                mediaInfo = await uploadMediaService.getMediaInfo(value);
-                global.logWorkflow(`📎 Résolution UUID: ${value}`, {
-                  url: mediaInfo.url,
-                  type: mediaInfo.type,
-                  size: mediaInfo.size
-                });
               }
               
-              if (mediaInfo) {
-                const fieldName = `${task.id}_${key}`;
-                
-                if (!filesByField[fieldName]) {
-                  filesByField[fieldName] = [];
-                }
-                
-                // Stocker les infos du média (URL, path, etc.) - PAS de buffer
-                const fileInfo = {
-                  id: mediaInfo.id || value,
-                  url: mediaInfo.url,
-                  path: mediaInfo.path,
-                  originalName: mediaInfo.originalName || mediaInfo.filename,
-                  mimeType: mediaInfo.mimetype,
-                  size: mediaInfo.size,
-                  type: mediaInfo.type || 'image'
-                };
-                
-                filesByField[fieldName].push(fileInfo);
-                
-                // Ajouter au mapping direct UUID/ID -> info média
-                mediaFiles[value] = fileInfo;
-                
-                global.logWorkflow(`📎 Média résolu: ${value}`, {
-                  fieldName: fieldName,
-                  url: mediaInfo.url,
-                  type: mediaInfo.type || 'image'
-                });
-              }
+              // Assigner à ce champ (ex: edit1_images)
+              const fieldName = `${task.id}_${inputKey}`;
+              filesByField[fieldName] = resolvedFiles;
               
-            } catch (error) {
-              global.logWorkflow(`❌ Erreur résolution média ID: ${value}`, {
-                error: error.message
+              global.logWorkflow(`📁 Champ résolu: ${fieldName}`, {
+                filesCount: resolvedFiles.length
               });
-            }
-          }
-          // Vérifier si c'est un array d'IDs de médias
-          else if (Array.isArray(value) && value.length > 0 && 
-                   typeof value[0] === 'string' && 
-                   (value[0].match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ||
-                    value[0].startsWith('collection_'))) {
-            
-            const fieldName = `${task.id}_${key}`;
-            
-            if (!filesByField[fieldName]) {
-              filesByField[fieldName] = [];
-            }
-            
-            for (const mediaId of value) {
-              try {
-                let mediaInfo;
-                
-                if (mediaId.startsWith('collection_')) {
-                  // Résolution collection
-                  const collectionManager = await import('../services/collectionManager.js');
-                  const currentCollection = await collectionManager.getCurrentCollection();
-                  
-                  if (currentCollection && currentCollection.images) {
-                    const indexMatch = mediaId.match(/collection_(\d+)/);
-                    if (indexMatch) {
-                      const index = parseInt(indexMatch[1]);
-                      const img = currentCollection.images[index];
-                      
-                      if (img && img.url) {
-                        const filename = img.url.split('/').pop();
-                        const mediaPath = path.join(process.cwd(), 'medias', filename);
-                        
-                        mediaInfo = {
-                          id: `collection_${index}`,
-                          originalName: img.description || filename,
-                          filename: filename,
-                          mimetype: img.type === 'video' ? 'video/mp4' : 'image/jpeg',
-                          type: img.type || 'image',
-                          url: img.url,
-                          path: mediaPath
-                        };
-                      }
-                    }
-                  }
-                } else {
-                  // UUID classique
-                  mediaInfo = await uploadMediaService.getMediaInfo(mediaId);
-                }
-                
-                if (mediaInfo) {
-                  const fileInfo = {
-                    id: mediaInfo.id || mediaId,
-                    url: mediaInfo.url,
-                    path: mediaInfo.path,
-                    originalName: mediaInfo.originalName || mediaInfo.filename,
-                    mimeType: mediaInfo.mimetype,
-                    size: mediaInfo.size,
-                    type: mediaInfo.type || 'image'
-                  };
-                  
-                  filesByField[fieldName].push(fileInfo);
-                  
-                  // Ajouter au mapping direct ID -> info média
-                  mediaFiles[mediaId] = fileInfo;
-                  
-                  global.logWorkflow(`📎 Média array résolu: ${mediaId}`, {
-                    fieldName: fieldName,
-                    url: mediaInfo.url,
-                    type: mediaInfo.type || 'image'
-                  });
-                }
-                
-              } catch (error) {
-                global.logWorkflow(`❌ Erreur résolution média ID array: ${mediaId}`, {
-                  error: error.message
-                });
-              }
             }
           }
         }
       }
     }
     
-    // Si des médias ont été résolus, les ajouter aux inputs
-    if (Object.keys(filesByField).length > 0) {
-      inputs.__uploadedFiles = filesByField;
-    }
+    global.logWorkflow('🎯 Résolution médias terminée', {
+      fieldsCount: Object.keys(filesByField).length,
+      mediaFilesCount: Object.keys(mediaFiles).length
+    });
     
-    if (Object.keys(mediaFiles).length > 0) {
-      inputs.__mediaFiles = mediaFiles;
-      
-      global.logWorkflow('📎 Médias résolus depuis IDs', {
-        fields: Object.keys(filesByField),
-        mediaIds: Object.keys(mediaFiles),
-        counts: Object.fromEntries(
-          Object.entries(filesByField).map(([k, v]) => [k, v.length])
-        )
-      });
-    }
+    return { filesByField, mediaFiles };
     
   } catch (error) {
-    global.logWorkflow('❌ Erreur lors de la résolution des IDs de médias', {
-      error: error.message
+    global.logWorkflow('❌ Erreur résolution médias:', error);
+    throw error;
+  }
+}
+
+// Configuration multer pour les uploads conditionnels
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// Middleware conditionnel: utilise multer seulement si c'est multipart
+const conditionalMulter = (req, res, next) => {
+  const contentType = req.get('Content-Type');
+  
+  if (contentType && contentType.includes('multipart/form-data')) {
+    // Utiliser multer pour les requêtes multipart
+    upload.any()(req, res, next);
+  } else {
+    // Passer directement pour les requêtes JSON
+    next();
+  }
+};
+
+function generateImageHash(imageBuffer) {
+  return crypto.createHash('md5').update(imageBuffer).digest('hex').substring(0, 8);
+}
+
+async function processImagesForDescriptions(images) {
+  const processedImages = [];
+  
+  for (const image of images) {
+    const imageHash = generateImageHash(image.buffer);
+    global.logWorkflow(`📷 Image ${imageHash}`, {
+      size: image.buffer.length,
+      mimetype: image.mimetype,
+      originalname: image.originalname
+    });
+    
+    processedImages.push({
+      buffer: image.buffer,
+      hash: imageHash,
+      mimetype: image.mimetype,
+      originalname: image.originalname
     });
   }
-}
-
-// Cache en mémoire pour les analyses d'images
-// Structure: { imageHash: { description, timestamp } }
-const imageAnalysisCache = new Map();
-const CACHE_DURATION = 60 * 60 * 1000; // 1 heure
-
-/**
- * Génère un hash pour une image (pour le cache)
- */
-function generateImageHash(imageBuffer) {
-  return crypto.createHash('md5').update(imageBuffer).digest('hex');
-}
-
-/**
- * Analyse une image et met en cache le résultat
- */
-async function getImageDescription(imageBuffer, forceAnalyze = false) {
-  const imageHash = generateImageHash(imageBuffer);
   
-  // Vérifier le cache
-  if (!forceAnalyze && imageAnalysisCache.has(imageHash)) {
-    const cached = imageAnalysisCache.get(imageHash);
-    const age = Date.now() - cached.timestamp;
-    
-    if (age < CACHE_DURATION) {
-      console.log('✅ Description trouvée dans le cache');
-      return cached.description;
-    } else {
-      console.log('⏰ Cache expiré, re-analyse nécessaire');
-      imageAnalysisCache.delete(imageHash);
-    }
-  }
-  
-  // Analyser l'image
-  console.log('🔍 Analyse de l\'image...');
-  const description = await analyzeImage({ image: imageBuffer });
-  
-  // Mettre en cache
-  imageAnalysisCache.set(imageHash, {
-    description,
-    timestamp: Date.now()
-  });
-  
-  console.log('💾 Description mise en cache');
-  return description;
-}
-
-// Configuration de multer pour compter les images
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max par image
-  },
-});
-
-/**
- * Middleware conditionnel pour multer
- * N'utilise multer que si Content-Type est multipart/form-data
- * Accepte n'importe quel nom de champ pour les fichiers (noms dynamiques)
- */
-function conditionalMulter(req, res, next) {
-  const contentType = req.get('Content-Type') || '';
-  if (contentType.includes('multipart/form-data')) {
-    // Utiliser .any() pour accepter des champs avec noms dynamiques
-    // Ex: task1_uploadedImages, task2_capturedImage, etc.
-    return upload.any()(req, res, next);
-  }
-  next();
+  return processedImages;
 }
 
 /**
  * POST /api/workflow/run
- * Exécute un workflow complet basé sur un JSON de tâches séquentielles
+ * Exécuter un workflow complet basé sur des tâches séquentielles
  * 
- * Content-Type: multipart/form-data ou application/json
- * 
- * Multipart (avec fichiers):
- * - workflow: string (requis) - JSON du workflow à exécuter
- * - images[]: File[] (optionnel) - Images d'entrée
+ * Formats acceptés:
+ * 1. multipart/form-data (avec fichiers) :
+ * - workflow: object (requis) - Objet workflow avec tâches
+ * - images[]: File[] (optionnel) - Images uploadées groupées par champ
  * - user_prompt: string (optionnel) - Prompt utilisateur
+ * - taskId_inputKey: File[] (optionnel) - Fichiers spécifiques à une tâche
  * 
- * JSON (sans fichiers):
+ * 2. application/json (sans fichiers) :
  * - workflow: object (requis) - Objet workflow avec tâches
  * - inputs: object (optionnel) - Données d'entrée du workflow
  */
@@ -382,61 +217,32 @@ router.post('/run', conditionalMulter, async (req, res) => {
           if (!filesByField[fieldName]) {
             filesByField[fieldName] = [];
           }
-          
-          filesByField[fieldName].push({
-            buffer: file.buffer,
-            originalName: file.originalname,
-            mimeType: file.mimetype,
-            size: file.size
-          });
+          filesByField[fieldName].push(file);
         });
-        
-        global.logWorkflow('📎 Fichiers uploadés par champ', {
-          fields: Object.keys(filesByField),
-          counts: Object.fromEntries(
-            Object.entries(filesByField).map(([k, v]) => [k, v.length])
-          )
-        });
-        
-        // Si le champ est "images" (mode template classique)
-        if (filesByField.images) {
-          inputs.images = filesByField.images;
-        }
-        
-        // Stocker tous les fichiers pour résolution ultérieure
-        inputs.__uploadedFiles = filesByField;
+
+        global.logWorkflow('📁 Fichiers reçus par champ:', Object.keys(filesByField));
+
+        // Convertir en format attendu par le WorkflowRunner
+        inputs.files = filesByField;
       }
 
-      // Parser les inputs JSON s'ils sont fournis
-      if (req.body.inputs) {
-        try {
-          const parsedInputs = JSON.parse(req.body.inputs);
-          global.logWorkflow('📥 Inputs parsés depuis JSON', {
-            inputsKeys: Object.keys(parsedInputs),
-            inputsValues: parsedInputs
-          });
-          Object.assign(inputs, parsedInputs);
-        } catch (error) {
-          global.logWorkflow('⚠️ Erreur parsing inputs JSON', { 
-            error: error.message,
-            rawInputs: req.body.inputs
-          });
+      // Ajouter autres inputs du body
+      Object.keys(req.body).forEach(key => {
+        if (key !== 'workflow') {
+          try {
+            // Essayer de parser en JSON si c'est une string
+            inputs[key] = typeof req.body[key] === 'string' ? 
+              (req.body[key].startsWith('{') || req.body[key].startsWith('[') ? 
+                JSON.parse(req.body[key]) : req.body[key]) : 
+              req.body[key];
+          } catch (e) {
+            inputs[key] = req.body[key];
+          }
         }
-      }
-
-      global.logWorkflow('📦 Inputs finaux avant exécution', {
-        inputsKeys: Object.keys(inputs),
-        hasImages: !!inputs.images,
-        imageCount: inputs.images?.length
       });
 
-      // Compatibilité: user_prompt peut aussi être envoyé directement
-      if (req.body.user_prompt) {
-        inputs.user_prompt = req.body.user_prompt;
-      }
-
     } else {
-      // Format JSON pur
+      // Format JSON simple
       workflow = req.body.workflow;
       inputs = req.body.inputs || {};
 
@@ -448,671 +254,48 @@ router.post('/run', conditionalMulter, async (req, res) => {
       }
     }
 
-    // Validation de base du workflow
-    if (!workflow.tasks) {
-      return res.status(400).json({
-        success: false,
-        error: 'Le workflow doit contenir une liste "tasks"'
-      });
-    }
-
     global.logWorkflow('📋 Workflow reçu', {
-      workflowId: workflow.id,
-      workflowName: workflow.name,
-      taskCount: workflow.tasks.length,
+      workflowId: workflow.workflow?.id || workflow.id,
+      tasksCount: workflow.workflow?.tasks?.length || workflow.tasks?.length,
       inputKeys: Object.keys(inputs)
     });
 
-    // Résoudre les IDs de médias vers les fichiers locaux
-    global.logWorkflow('🔍 Avant résolution médias', {
-      workflowTasks: workflow.tasks?.length || 0,
-      inputKeys: Object.keys(inputs),
-      sampleTask: workflow.tasks?.[0]
-    });
-    
-    await resolveMediaIds(workflow, inputs);
-    
-    global.logWorkflow('🔍 Après résolution médias', {
-      inputKeys: Object.keys(inputs),
-      hasUploadedFiles: !!inputs.__uploadedFiles
-    });
+    // Normaliser le format du workflow (gérer les cas où workflow.workflow existe)
+    const actualWorkflow = workflow.workflow || workflow;
 
-    // Exécution du workflow
-    const executionResult = await workflowRunner.executeWorkflow(
-      workflow,
-      inputs
-    );
-
-    global.logWorkflow('✅ Workflow exécuté avec succès', {
-      workflowId: executionResult.workflow_id,
-      executionTime: executionResult.execution.execution_time,
-      tasksCompleted: executionResult.execution.progress.completed_tasks
-    });
-
-    // Sauvegarde complète du workflow avec tous les assets
-    try {
-      const saveResult = await saveWorkflowExecution({
-        operationId: executionResult.workflow_id,
-        type: 'workflow_execution',
-        prompt: inputs.user_prompt || workflow.name || 'Workflow sans titre',
-        workflow: workflow,
-        inputs: inputs,
-        results: executionResult.results,
-        taskResults: executionResult.task_results,
-        executionTime: executionResult.execution.execution_time,
-        status: executionResult.execution.status
-      });
+    // Résoudre les IDs de médias si nécessaire
+    if (inputs && Object.keys(inputs).length > 0) {
+      const { filesByField, mediaFiles } = await resolveMediaIds(actualWorkflow, inputs);
       
-      global.logWorkflow('💾 Workflow sauvegardé sur disque', {
-        workflowDir: saveResult.workflowDir,
-        filesCount: saveResult.filesCount,
-        operationId: saveResult.operationId
-      });
-      
-    } catch (saveError) {
-      global.logWorkflow('⚠️ Erreur lors de la sauvegarde', {
-        error: saveError.message
-      });
-      // Continue même si la sauvegarde échoue
-    }
-
-    res.json(executionResult);
-
-  } catch (error) {
-    global.logWorkflow('❌ Erreur lors de l\'exécution du workflow', {
-      error: error.message,
-      stack: error.stack
-    });
-
-    res.status(500).json({
-      success: false,
-      error: 'Erreur lors de l\'exécution du workflow',
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * POST /api/workflow/analyze
- * Analyse le prompt et les images pour déterminer le workflow optimal
- * 
- * Multipart form-data ou JSON:
- * - prompt: string (requis) - Prompt de l'utilisateur
- * - images: File[] (optionnel) - Images fournies
- * 
- * OU
- * 
- * JSON:
- * - prompt: string (requis)
- * - imageCount: number (optionnel) - Nombre d'images disponibles
- * - imageDescriptions: string[] (optionnel) - Descriptions des images
- */
-router.post('/analyze', conditionalMulter, async (req, res) => {
-  try {
-    console.log('🔍 POST /analyze - req.body complet:', JSON.stringify(req.body, null, 2));
-    
-    const { prompt, imageDescriptions: providedDescriptions } = req.body;
-    
-    console.log('🔍 POST /analyze - Body reçu:', {
-      prompt: prompt?.substring(0, 50),
-      hasProvidedDescriptions: !!providedDescriptions,
-      providedDescriptionsType: typeof providedDescriptions,
-      providedDescriptionsLength: providedDescriptions?.length,
-      providedDescriptionsIsArray: Array.isArray(providedDescriptions),
-      hasFiles: !!req.files?.length,
-      filesCount: req.files?.length || 0
-    });
-
-    if (!prompt || !prompt.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Le prompt est requis'
-      });
-    }
-
-    // Compter les images (soit depuis files, soit depuis imageCount)
-    let imageCount = 0;
-    let imageDescriptions = [];
-    
-    // Si des descriptions sont fournies directement (depuis le store frontend)
-    if (providedDescriptions && Array.isArray(providedDescriptions) && providedDescriptions.length > 0) {
-      imageDescriptions = providedDescriptions;
-      imageCount = imageDescriptions.length;
-      console.log('📋 Descriptions reçues depuis le frontend:', imageDescriptions.length);
-    }
-    // Sinon, analyser les images uploadées
-    else if (req.files && req.files.length > 0) {
-      imageCount = req.files.length;
-      
-      // Analyser chaque image si disponible
-      console.log('🖼️  Analyse des images uploadées...');
-      for (let i = 0; i < req.files.length; i++) {
-        try {
-          const description = await getImageDescription(req.files[i].buffer);
-          imageDescriptions.push(description);
-          console.log(`✅ Image ${i + 1} analysée`);
-        } catch (error) {
-          console.warn(`⚠️  Erreur analyse image ${i + 1}:`, error.message);
-          imageDescriptions.push('Image non analysée');
-        }
+      // Ajouter les fichiers résolus aux inputs
+      if (Object.keys(filesByField).length > 0) {
+        if (!inputs.files) inputs.files = {};
+        Object.assign(inputs.files, filesByField);
       }
-    } else if (req.body.imageCount !== undefined) {
-      imageCount = parseInt(req.body.imageCount);
+      
+      // Ajouter le mapping direct des médias
+      if (Object.keys(mediaFiles).length > 0) {
+        inputs.mediaFiles = mediaFiles;
+      }
     }
 
-    console.log('🔍 Analyse de workflow demandée');
-    console.log('📝 Prompt:', prompt);
-    console.log('🖼️  Images:', imageCount);
-    if (imageDescriptions.length > 0) {
-      console.log('📋 Descriptions à envoyer à l\'analyseur:', imageDescriptions.length);
-      console.log('📝 Aperçu descriptions:', imageDescriptions.map((d, i) => `${i + 1}: ${d.substring(0, 50)}...`));
-    }
+    // Exécuter le workflow
+    const result = await workflowRunner.executeWorkflow(actualWorkflow, inputs);
 
-    // Analyser le workflow avec les descriptions d'images
-    const result = await analyzeWorkflow({
-      prompt: prompt.trim(),
-      imageCount,
-      imageDescriptions
+    global.logWorkflow('✅ Workflow terminé avec succès', {
+      success: result.success,
+      resultKeys: Object.keys(result.results || {})
     });
 
     res.json(result);
 
   } catch (error) {
-    console.error('❌ Erreur lors de l\'analyse:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Erreur lors de l\'analyse du workflow',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
-
-/**
- * POST /api/workflow/execute
- * Analyse ET exécute automatiquement le workflow recommandé
- * 
- * Multipart form-data:
- * - prompt: string (requis) - Prompt de l'utilisateur
- * - images: File[] (optionnel) - Images fournies
- * - useOptimizedPrompt: boolean (optionnel, défaut: true) - Utiliser le prompt optimisé
- * 
- * Retourne directement le résultat de l'exécution (image/vidéo)
- */
-router.post('/execute', upload.array('images', 10), async (req, res) => {
-  try {
-    const { prompt, useOptimizedPrompt = 'true' } = req.body;
-
-    if (!prompt || !prompt.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Le prompt est requis'
-      });
-    }
-
-    // Compter et stocker les images
-    const images = req.files || [];
-    const imageCount = images.length;
-    const imageDescriptions = [];
-
-    console.log('🚀 Exécution automatique de workflow');
-    console.log('📝 Prompt:', prompt);
-    console.log('🖼️  Images:', imageCount);
-
-    // Analyser les images si disponibles
-    if (images.length > 0) {
-      console.log('🖼️  Analyse des images pour le contexte...');
-      for (let i = 0; i < images.length; i++) {
-        try {
-          const description = await getImageDescription(images[i].buffer);
-          imageDescriptions.push(description);
-          console.log(`✅ Image ${i + 1} analysée`);
-        } catch (error) {
-          console.warn(`⚠️  Erreur analyse image ${i + 1}:`, error.message);
-          imageDescriptions.push('Image non analysée');
-        }
-      }
-    }
-
-    // Étape 1: Analyser le workflow avec les descriptions
-    const analysis = await analyzeWorkflow({
-      prompt: prompt.trim(),
-      imageCount,
-      imageDescriptions
-    });
-
-    if (!analysis.success) {
-      return res.status(400).json(analysis);
-    }
-
-    console.log('✅ Workflow détecté:', analysis.workflow.name);
-    console.log('📊 Confiance:', (analysis.analysis.confidence * 100).toFixed(0) + '%');
-
-    // Vérifier les exigences
-    if (!analysis.requirements.satisfied) {
-      return res.status(400).json({
-        success: false,
-        error: `Ce workflow nécessite ${analysis.requirements.imagesNeeded} image(s), mais seulement ${analysis.requirements.imagesProvided} fournie(s)`,
-        analysis
-      });
-    }
-
-    // Déterminer le prompt à utiliser
-    const finalPrompt = useOptimizedPrompt === 'true' 
-      ? analysis.prompts.optimized 
-      : prompt;
-
-    console.log('📝 Prompt utilisé:', finalPrompt);
-
-    // Étape 2: Exécuter le workflow approprié
-    let result;
-    const workflowId = analysis.workflow.id;
-
-    switch (workflowId) {
-      case 'text_to_image':
-        console.log('🎨 Génération d\'image...');
-        const imageUrl = await generateImage({ prompt: finalPrompt });
-        result = {
-          success: true,
-          type: 'image',
-          imageUrl: imageUrl,
-          message: 'Image générée avec succès',
-          mock: false
-        };
-        break;
-
-      case 'text_to_video':
-        console.log('🎬 Génération de vidéo...');
-        const videoResult = await generateVideo({ prompt: finalPrompt });
-        result = {
-          success: true,
-          type: 'video',
-          videoUrl: videoResult.videoUrl,
-          message: 'Vidéo générée avec succès',
-          mock: videoResult.mock || false,
-          params: videoResult.params
-        };
-        break;
-
-      case 'image_edit_single':
-        console.log('✏️ Édition d\'image unique...');
-        if (images.length === 0) {
-          throw new Error('Une image est requise pour l\'édition');
-        }
-        const editedImageUrl = await editSingleImage({
-          prompt: finalPrompt,
-          image: images[0].buffer
-        });
-        result = {
-          success: true,
-          type: 'image',
-          imageUrl: editedImageUrl,
-          message: 'Image éditée avec succès',
-          mock: false
-        };
-        break;
-
-      case 'image_edit_multiple':
-        console.log('✏️ Édition de plusieurs images...');
-        if (images.length < 2) {
-          throw new Error('Au moins 2 images sont requises');
-        }
-        const mergedImageUrl = await editImage({
-          prompt: finalPrompt,
-          image: images[0].buffer,
-          secondImage: images[1].buffer
-        });
-        result = {
-          success: true,
-          type: 'image',
-          imageUrl: mergedImageUrl,
-          message: 'Images fusionnées avec succès',
-          mock: false
-        };
-        break;
-
-      case 'image_to_video_single':
-        console.log('🎥 Animation d\'image...');
-        if (images.length === 0) {
-          throw new Error('Une image est requise');
-        }
-        const animatedResult = await generateVideoFromImage({
-          prompt: finalPrompt,
-          image: images[0].buffer
-        });
-        result = {
-          success: true,
-          type: 'video',
-          videoUrl: animatedResult.videoUrl,
-          message: 'Image animée avec succès',
-          mock: animatedResult.mock || false,
-          params: animatedResult.params
-        };
-        break;
-
-      case 'image_to_video_transition':
-        console.log('🎥 Transition entre images...');
-        if (images.length < 2) {
-          throw new Error('2 images sont requises pour la transition');
-        }
-        const transitionResult = await generateVideoFromImage({
-          prompt: finalPrompt,
-          image: images[0].buffer,
-          lastImage: images[1].buffer
-        });
-        result = {
-          success: true,
-          type: 'video',
-          videoUrl: transitionResult.videoUrl,
-          message: 'Transition créée avec succès',
-          mock: transitionResult.mock || false,
-          params: transitionResult.params
-        };
-        break;
-
-      case 'edit_then_video':
-        console.log('🎨➡️🎥 Workflow multi-étapes: Édition puis vidéo...');
-        if (images.length === 0) {
-          throw new Error('Une image est requise');
-        }
-        
-        // Utiliser l'orchestrateur de workflows multi-étapes
-        const multiStepWorkflow = getMultiStepWorkflow('edit_then_video');
-        if (!multiStepWorkflow) {
-          throw new Error('Configuration du workflow multi-étapes introuvable');
-        }
-
-        // Préparer les prompts pour chaque étape
-        const stepPrompts = [];
-        if (analysis.prompts.step1) {
-          stepPrompts[0] = analysis.prompts.step1;
-          console.log(`📝 Prompt étape 1 (Édition): "${analysis.prompts.step1}"`);
-        }
-        if (analysis.prompts.step2) {
-          stepPrompts[1] = analysis.prompts.step2;
-          console.log(`📝 Prompt étape 2 (Vidéo): "${analysis.prompts.step2}"`);
-        }
-
-        const multiStepResult = await executeMultiStepWorkflow(multiStepWorkflow, {
-          prompt: finalPrompt,
-          optimizedPrompt: analysis.prompts.optimized,
-          stepPrompts: stepPrompts, // Transmettre les prompts séparés
-          imageBuffers: images.map(img => img.buffer),
-          parameters: {
-            aspectRatio: req.body.aspectRatio,
-            outputFormat: req.body.outputFormat,
-            outputQuality: parseInt(req.body.outputQuality) || 90,
-            numFrames: parseInt(req.body.numFrames) || 81,
-            resolution: req.body.resolution
-          }
-        });
-
-        // Construire le résultat pour le frontend
-        result = {
-          success: true,
-          type: 'multi_step',
-          workflowId: multiStepResult.workflowId,
-          workflowName: multiStepResult.workflowName,
-          steps: multiStepResult.steps.map(step => ({
-            stepNumber: step.stepNumber,
-            name: step.name,
-            type: step.type,
-            prompt: step.prompt, // Inclure le prompt utilisé pour cette étape
-            outputUrl: step.outputUrl,
-            duration: step.duration,
-            success: step.success
-          })),
-          // Le résultat final (vidéo)
-          finalType: multiStepResult.finalResult.type,
-          finalUrl: multiStepResult.finalResult.outputUrl,
-          // Pour compatibilité avec le frontend
-          resultUrl: multiStepResult.finalResult.outputUrl, // URL principale (vidéo finale)
-          videoUrl: multiStepResult.finalResult.type === 'video' 
-            ? multiStepResult.finalResult.outputUrl 
-            : null,
-          imageUrl: multiStepResult.steps[0].outputUrl, // Image éditée (étape 1)
-          timestamp: new Date().toISOString(),
-          message: `Workflow complété: ${multiStepResult.steps.length} étapes exécutées`,
-          mock: false
-        };
-        break;
-
-      default:
-        throw new Error(`Workflow non supporté: ${workflowId}`);
-    }
-
-    // Ajouter les métadonnées d'analyse au résultat
-    const response = {
-      ...result,
-      workflow: {
-        id: analysis.workflow.id,
-        name: analysis.workflow.name,
-        confidence: analysis.analysis.confidence
-      },
-      prompts: {
-        original: prompt,
-        optimized: analysis.prompts.optimized,
-        used: finalPrompt
-      }
-    };
-
-    // Sauvegarder l'opération complète
-    try {
-      const resultUrl = result.videoUrl || result.imageUrl || result.finalUrl;
-      await saveCompleteOperation({
-        operationType: workflowId,
-        prompt: finalPrompt,
-        parameters: {
-          ...req.body,
-          workflowName: analysis.workflow.name,
-          confidence: analysis.analysis.confidence,
-          originalPrompt: prompt,
-          optimizedPrompt: analysis.prompts.optimized,
-          useOptimizedPrompt: useOptimizedPrompt === 'true'
-        },
-        inputImages: images.map(img => img.buffer),
-        resultUrl: resultUrl,
-        workflowAnalysis: {
-          workflow: analysis.workflow,
-          confidence: analysis.analysis.confidence,
-          reasoning: analysis.analysis.reasoning
-        },
-        error: null
-      });
-      console.log('💾 Opération workflow sauvegardée');
-    } catch (saveError) {
-      console.error('⚠️ Erreur sauvegarde workflow:', saveError.message);
-      // Ne pas bloquer la réponse
-    }
-
-    console.log('✅ Exécution terminée avec succès');
-    res.json(response);
-
-  } catch (error) {
-    console.error('❌ Erreur lors de l\'exécution:', error);
-    
-    // Sauvegarder l'échec
-    try {
-      await saveCompleteOperation({
-        operationType: req.body.workflowId || 'unknown',
-        prompt: req.body.prompt,
-        parameters: req.body,
-        inputImages: req.files ? req.files.map(f => f.buffer) : [],
-        resultUrl: null,
-        workflowAnalysis: null,
-        error: error.message
-      });
-    } catch (saveError) {
-      console.error('⚠️ Erreur sauvegarde échec:', saveError.message);
-    }
+    global.logWorkflow('❌ Erreur lors de l\'exécution du workflow:', error.message);
     
     res.status(500).json({
       success: false,
       error: error.message || 'Erreur lors de l\'exécution du workflow',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
-
-/**
- * GET /api/workflow/list
- * Récupère la liste de tous les workflows disponibles
- */
-router.get('/list', (req, res) => {
-  try {
-    const workflows = Object.values(AVAILABLE_WORKFLOWS).map(wf => ({
-      id: wf.id,
-      name: wf.name,
-      description: wf.description,
-      requires: wf.requires
-    }));
-
-    res.json({
-      success: true,
-      workflows,
-      count: workflows.length
-    });
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * GET /api/workflow/examples
- * Récupère des exemples de prompts pour chaque workflow
- */
-router.get('/examples', (req, res) => {
-  try {
-    const examples = getWorkflowExamples();
-    
-    // Formater avec les noms des workflows
-    const formattedExamples = Object.entries(examples).map(([workflowId, prompts]) => {
-      const workflow = AVAILABLE_WORKFLOWS[workflowId];
-      return {
-        workflow: {
-          id: workflowId,
-          name: workflow.name,
-          description: workflow.description
-        },
-        examples: prompts
-      };
-    });
-
-    res.json({
-      success: true,
-      examples: formattedExamples
-    });
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * GET /api/workflow/:id
- * Récupère les détails d'un workflow spécifique
- */
-router.get('/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    const workflowKey = id.toUpperCase();
-    
-    const workflow = AVAILABLE_WORKFLOWS[workflowKey];
-    
-    if (!workflow) {
-      return res.status(404).json({
-        success: false,
-        error: `Workflow '${id}' non trouvé`
-      });
-    }
-
-    // Obtenir les exemples pour ce workflow
-    const examples = getWorkflowExamples()[workflowKey] || [];
-
-    res.json({
-      success: true,
-      workflow: {
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        requires: workflow.requires,
-        service: workflow.service,
-        method: workflow.method,
-        steps: workflow.steps
-      },
-      examples
-    });
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * GET /api/workflow/cache/stats
- * Récupère les statistiques du cache d'analyse d'images
- */
-router.get('/cache/stats', (req, res) => {
-  try {
-    const now = Date.now();
-    let validEntries = 0;
-    let expiredEntries = 0;
-
-    imageAnalysisCache.forEach((value) => {
-      const age = now - value.timestamp;
-      if (age < CACHE_DURATION) {
-        validEntries++;
-      } else {
-        expiredEntries++;
-      }
-    });
-
-    res.json({
-      success: true,
-      cache: {
-        total: imageAnalysisCache.size,
-        valid: validEntries,
-        expired: expiredEntries,
-        duration: `${CACHE_DURATION / 1000 / 60} minutes`
-      }
-    });
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * DELETE /api/workflow/cache
- * Vide le cache d'analyse d'images
- */
-router.delete('/cache', (req, res) => {
-  try {
-    const size = imageAnalysisCache.size;
-    imageAnalysisCache.clear();
-    
-    res.json({
-      success: true,
-      message: `Cache vidé (${size} entrées supprimées)`
-    });
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
     });
   }
 });

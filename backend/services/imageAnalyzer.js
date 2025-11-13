@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
+import { getMediasDir } from '../utils/fileUtils.js';
 
 dotenv.config();
 
@@ -83,7 +84,8 @@ export async function analyzeImage(imageInput, customPrompt = null) {
     else if (typeof imageInput === 'string' && imageInput.startsWith('/medias/')) {
       console.log('📂 Chargement de l\'image locale:', imageInput);
       const filename = imageInput.replace('/medias/', '');
-      const filePath = path.join(process.cwd(), 'medias', filename);
+      const mediasDir = getMediasDir();
+      const filePath = path.join(mediasDir, filename);
       
       try {
         const buffer = await fs.readFile(filePath);
