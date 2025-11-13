@@ -1,0 +1,74 @@
+{
+  "generate_image": {
+    "variablePrefix": "img",
+    "variableExample": "{{img1.image}}",
+    "outputDescription": "Génère une image accessible via {{taskId.image}}",
+    "commonUse": "Création d'images à partir de descriptions textuelles"
+  },
+  "edit_image": {
+    "variablePrefix": "edit",
+    "variableExample": "{{edit1.edited_image}}",
+    "outputDescription": "Génère une ou plusieurs images éditées via {{taskId.edited_image}} ou {{taskId.edited_images}}",
+    "commonUse": "Modification d'images, transfert de pose, changement de style"
+  },
+  "image_resize_crop": {
+    "variablePrefix": "resize",
+    "variableExample": "{{resize1.image_url}}",
+    "outputDescription": "Image redimensionnée/recadrée via {{taskId.image_url}}",
+    "commonUse": "Ajustement dimensions et ratio d'images"
+  },
+  "describe_images": {
+    "variablePrefix": "desc",
+    "variableExample": "{{desc1.description}}",
+    "outputDescription": "Descriptions textuelles via {{taskId.description}} ou {{taskId.descriptions}}",
+    "commonUse": "Analyse d'images pour générer des prompts ou descriptions"
+  },
+  "enhance_prompt": {
+    "variablePrefix": "enhance",
+    "variableExample": "{{enhance1.enhanced_prompt}}",
+    "outputDescription": "Prompt amélioré via {{taskId.enhanced_prompt}}",
+    "commonUse": "Amélioration de prompts pour génération image/vidéo"
+  },
+  "generate_video_t2v": {
+    "variablePrefix": "video",
+    "variableExample": "{{video1.video}}",
+    "outputDescription": "Vidéo générée via {{taskId.video}}",
+    "commonUse": "Création de vidéos à partir de descriptions textuelles"
+  },
+  "generate_video_i2v": {
+    "variablePrefix": "i2v",
+    "variableExample": "{{i2v1.video}}",
+    "outputDescription": "Vidéo générée via {{taskId.video}}",
+    "commonUse": "Animation d'images statiques en vidéos"
+  },
+  "text_input": {
+    "variablePrefix": "text",
+    "variableExample": "{{text1.text}}",
+    "outputDescription": "Texte saisi via {{taskId.text}}",
+    "commonUse": "Saisie de prompts, instructions, descriptions par l'utilisateur"
+  },
+  "image_input": {
+    "variablePrefix": "image",
+    "variableExample": "{{image1.image}}",
+    "outputDescription": "Image sélectionnée via {{taskId.image}}",
+    "commonUse": "Sélection d'images depuis les collections"
+  },
+  "video_input": {
+    "variablePrefix": "videoIn",
+    "variableExample": "{{videoIn1.video}}",
+    "outputDescription": "Vidéo sélectionnée via {{taskId.video}}",
+    "commonUse": "Sélection de vidéos depuis les collections"
+  },
+  "upload_image": {
+    "variablePrefix": "upload",
+    "variableExample": "{{upload1.image}}",
+    "outputDescription": "Image uploadée via {{taskId.image}}",
+    "commonUse": "Upload direct d'images depuis l'appareil"
+  },
+  "upload_video": {
+    "variablePrefix": "uploadVid",
+    "variableExample": "{{uploadVid1.video}}",
+    "outputDescription": "Vidéo uploadée via {{taskId.video}}",
+    "commonUse": "Upload direct de vidéos depuis l'appareil"
+  }
+}
