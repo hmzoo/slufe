@@ -1,7 +1,8 @@
 import { ref } from 'vue'
-import axios from 'axios'
+import { api } from 'src/boot/axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+// Utiliser l'instance axios configurée dans boot/axios.js
+// qui gère automatiquement les URLs en dev et prod
 
 /**
  * Composable pour l'exécution de workflows/templates
@@ -24,7 +25,7 @@ export function useWorkflowExecution() {
     formData.append('file', imageFile)
 
     try {
-      const response = await axios.post(`${API_URL}/api/media/upload`, formData, {
+      const response = await api.post('/media/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       
@@ -196,7 +197,7 @@ export function useWorkflowExecution() {
       // NOTE: On envoie AUSSI les inputs dans un paramètre séparé
       // car le backend les passe au WorkflowRunner
       // Les données sont dans workflow.inputs MAIS le backend s'attend aussi à req.body.inputs
-      const response = await axios.post(`${API_URL}/api/workflow/run`, {
+      const response = await api.post('/workflow/run', {
         workflow: workflowToExecute,
         inputs: {}  // Vide mais requis par le backend
       })

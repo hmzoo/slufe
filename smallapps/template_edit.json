@@ -1,0 +1,61 @@
+{
+  "id": "template_1763108942549_gibzb5bnc",
+  "name": "edit me",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "nice edit",
+    "description": "",
+    "inputs": [
+      {
+        "id": "text1",
+        "type": "text_input",
+        "label": "Prompt",
+        "placeholder": "Change the picture ...",
+        "defaultValue": "",
+        "multiline": true,
+        "required": true,
+        "userInput": ""
+      },
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "Image a modifier",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 1,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "inputs": {
+          "image1": "{{image1.image}}",
+          "image2": "",
+          "image3": "",
+          "editPrompt": "{{text1.text}}",
+          "aspectRatio": "original"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image2",
+        "type": "image_output",
+        "inputs": {
+          "image": "{{edit1.edited_images}}",
+          "title": "",
+          "caption": "",
+          "width": ""
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-14T08:29:02.549Z",
+  "createdFrom": "nice-edit-1763108920113",
+  "tags": []
+}

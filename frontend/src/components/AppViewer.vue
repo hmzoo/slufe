@@ -393,15 +393,26 @@
                         </template>
                       </q-file>
 
-                      <!-- Bouton caméra -->
-                      <q-btn
-                        color="primary"
-                        icon="camera_alt"
-                        label="Prendre une photo"
-                        outline
-                        class="camera-btn"
-                        @click="triggerCamera(inputId)"
-                      />
+                      <!-- Boutons caméra avec choix -->
+                      <div class="camera-buttons">
+                        <q-btn
+                          color="primary"
+                          icon="camera_alt"
+                          label="Prendre une photo"
+                          outline
+                          class="full-width q-mb-sm"
+                          @click="openCameraDialog(inputId, 'environment')"
+                        />
+                        <q-btn
+                          v-if="isMobile"
+                          color="secondary"
+                          icon="camera_front"
+                          label="Caméra frontale"
+                          outline
+                          class="full-width"
+                          @click="openCameraDialog(inputId, 'user')"
+                        />
+                      </div>
                     </div>
 
                     <!-- Aperçu avec actions -->
@@ -494,20 +505,11 @@
                 label="Exécuter"
                 icon="play_arrow"
                 size="lg"
-                class="execute-btn full-width"
+                class="full-width"
                 @click="executeTemplate"
                 :loading="executing"
                 :disable="!selectedTemplate || !isFormValid"
                 unelevated
-              />
-              <q-btn
-                color="grey-7"
-                label="Réinitialiser"
-                icon="refresh"
-                flat
-                @click="resetForm"
-                :disable="executing"
-                class="reset-btn"
               />
             </div>
 
@@ -637,6 +639,98 @@
         </div>
       </div>
     </div>
+
+    <!-- DIALOGUE CAMERA WEBCAM -->
+    <q-dialog v-model="showCameraDialog" persistent>
+      <q-card style="width: 90vw; max-width: 800px;">
+        <q-card-section class="bg-primary text-white">
+          <div class="text-h6">
+            <q-icon name="camera_alt" class="q-mr-sm" />
+            Capture Photo
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pa-none">
+          <!-- Zone vidéo -->
+          <div class="camera-container">
+            <video
+              ref="videoElement"
+              autoplay
+              playsinline
+              class="camera-video"
+            ></video>
+            
+            <!-- Canvas caché pour capturer l'image -->
+            <canvas
+              ref="canvasElement"
+              class="camera-canvas"
+              style="display: none;"
+            ></canvas>
+            
+            <!-- Preview de la photo capturée -->
+            <div v-if="capturedPhoto" class="photo-preview">
+              <img :src="capturedPhoto" alt="Photo capturée" />
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-section v-if="cameraError" class="bg-negative text-white">
+          <div class="text-center">
+            <q-icon name="error" size="2rem" class="q-mb-sm" />
+            <div class="text-subtitle2">{{ cameraError }}</div>
+            <div class="text-caption q-mt-sm">
+              Vérifiez que vous avez autorisé l'accès à la caméra
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="center" class="q-pa-md camera-actions">
+          <template v-if="!capturedPhoto">
+            <!-- Bouton capturer -->
+            <q-btn
+              color="primary"
+              icon="camera"
+              label="Capturer"
+              size="lg"
+              rounded
+              unelevated
+              class="full-width"
+              @click="capturePhoto"
+              :disable="!!cameraError"
+            />
+          </template>
+          
+          <template v-else>
+            <!-- Boutons après capture - empilés verticalement sur mobile -->
+            <div class="capture-actions">
+              <q-btn
+                color="positive"
+                icon="check"
+                label="Utiliser"
+                unelevated
+                class="full-width q-mb-sm"
+                @click="usePhoto"
+              />
+              <q-btn
+                color="grey-7"
+                icon="refresh"
+                label="Recommencer"
+                outline
+                class="full-width q-mb-sm"
+                @click="retakePhoto"
+              />
+              <q-btn
+                flat
+                icon="close"
+                label="Annuler"
+                class="full-width"
+                @click="closeCameraDialog"
+              />
+            </div>
+          </template>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -672,6 +766,21 @@ const templates = ref([])
 const formInputs = ref({})
 const showResultsInLeftColumn = ref(false)
 const dragOverZone = ref(null)
+
+// Camera state
+const showCameraDialog = ref(false)
+const videoElement = ref(null)
+const canvasElement = ref(null)
+const cameraStream = ref(null)
+const capturedPhoto = ref(null)
+const cameraError = ref(null)
+const currentInputId = ref(null)
+const currentCameraType = ref('environment')
+
+// Détection mobile
+const isMobile = computed(() => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+})
 
 // Computed
 const filteredTemplates = computed(() => {
@@ -1029,25 +1138,155 @@ const triggerFileInput = (inputId) => {
   }, 100)
 }
 
-const triggerCamera = (inputId) => {
-  // Créer un input caméra temporaire
-  const cameraInput = document.createElement('input')
-  cameraInput.type = 'file'
-  cameraInput.accept = 'image/*'
-  cameraInput.capture = 'environment'
-  cameraInput.style.display = 'none'
+/**
+ * Ouvre le dialogue de capture caméra avec getUserMedia API
+ * Fonctionne sur mobile ET desktop
+ */
+const openCameraDialog = async (inputId, cameraType = 'environment') => {
+  currentInputId.value = inputId
+  currentCameraType.value = cameraType
+  showCameraDialog.value = true
+  cameraError.value = null
+  capturedPhoto.value = null
   
-  cameraInput.addEventListener('change', (e) => {
-    handleFileChange(e, inputId)
-  })
+  // Attendre que le dialogue soit monté
+  await new Promise(resolve => setTimeout(resolve, 100))
   
-  document.body.appendChild(cameraInput)
-  cameraInput.click()
+  try {
+    // Vérifier si getUserMedia est supporté
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Votre navigateur ne supporte pas l\'accès à la caméra')
+    }
+    
+    // Configuration de la caméra
+    const constraints = {
+      video: {
+        facingMode: cameraType, // 'user' (frontale) ou 'environment' (arrière)
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    }
+    
+    // Demander l'accès à la caméra
+    console.log('📷 Demande d\'accès à la caméra...', cameraType)
+    cameraStream.value = await navigator.mediaDevices.getUserMedia(constraints)
+    
+    // Attacher le stream à la vidéo
+    if (videoElement.value) {
+      videoElement.value.srcObject = cameraStream.value
+      console.log('✅ Caméra activée')
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur accès caméra:', error)
+    
+    // Messages d'erreur adaptés
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      cameraError.value = 'Permission refusée. Autorisez l\'accès à la caméra dans les paramètres.'
+    } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      cameraError.value = 'Aucune caméra détectée sur cet appareil.'
+    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      cameraError.value = 'La caméra est déjà utilisée par une autre application.'
+    } else {
+      cameraError.value = error.message || 'Impossible d\'accéder à la caméra.'
+    }
+    
+    showNotification(cameraError.value, 'negative')
+  }
+}
+
+/**
+ * Capture une photo depuis le stream vidéo
+ */
+const capturePhoto = () => {
+  if (!videoElement.value || !canvasElement.value) {
+    showNotification('Erreur: éléments vidéo non disponibles', 'negative')
+    return
+  }
   
-  // Nettoyer après
-  setTimeout(() => {
-    document.body.removeChild(cameraInput)
-  }, 100)
+  try {
+    const video = videoElement.value
+    const canvas = canvasElement.value
+    
+    // Définir les dimensions du canvas selon la vidéo
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    
+    // Dessiner l'image de la vidéo sur le canvas
+    const context = canvas.getContext('2d')
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    
+    // Convertir en data URL
+    capturedPhoto.value = canvas.toDataURL('image/jpeg', 0.95)
+    
+    console.log('📸 Photo capturée')
+    showNotification('Photo capturée !', 'positive')
+    
+  } catch (error) {
+    console.error('❌ Erreur capture photo:', error)
+    showNotification('Erreur lors de la capture', 'negative')
+  }
+}
+
+/**
+ * Recommencer la capture (supprime la photo capturée)
+ */
+const retakePhoto = () => {
+  capturedPhoto.value = null
+  showNotification('Prêt pour une nouvelle photo', 'info')
+}
+
+/**
+ * Utilise la photo capturée et ferme le dialogue
+ */
+const usePhoto = async () => {
+  if (!capturedPhoto.value || !currentInputId.value) {
+    showNotification('Aucune photo à utiliser', 'warning')
+    return
+  }
+  
+  try {
+    // Convertir le data URL en Blob puis en File
+    const response = await fetch(capturedPhoto.value)
+    const blob = await response.blob()
+    const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    
+    // Assigner au formulaire
+    formInputs.value[currentInputId.value] = file
+    
+    showNotification('Photo ajoutée avec succès', 'positive')
+    closeCameraDialog()
+    
+  } catch (error) {
+    console.error('❌ Erreur utilisation photo:', error)
+    showNotification('Erreur lors de l\'ajout de la photo', 'negative')
+  }
+}
+
+/**
+ * Ferme le dialogue et arrête la caméra
+ */
+const closeCameraDialog = () => {
+  // Arrêter le stream vidéo
+  if (cameraStream.value) {
+    cameraStream.value.getTracks().forEach(track => {
+      track.stop()
+      console.log('📷 Caméra arrêtée')
+    })
+    cameraStream.value = null
+  }
+  
+  // Nettoyer le video element
+  if (videoElement.value) {
+    videoElement.value.srcObject = null
+  }
+  
+  // Réinitialiser l'état
+  showCameraDialog.value = false
+  capturedPhoto.value = null
+  cameraError.value = null
+  currentInputId.value = null
 }
 
 const handleFileChange = (event, inputId) => {
@@ -1352,9 +1591,11 @@ onMounted(async () => {
     }
   }
 
-  .camera-btn {
+  .camera-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     width: 100%;
-    font-weight: 500;
   }
 
   .hidden-file-input {
@@ -1706,4 +1947,80 @@ onMounted(async () => {
     opacity: 1;
   }
 }
+
+// ============================================
+// STYLES POUR LE DIALOGUE CAMERA
+// ============================================
+
+.camera-container {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  max-height: 500px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.photo-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+}
+
+// Actions de la caméra - optimisées pour mobile
+.camera-actions {
+  width: 100%;
+  
+  .capture-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+// Responsive mobile pour la caméra
+@media (max-width: 600px) {
+  .camera-container {
+    height: 50vh;
+  }
+  
+  .camera-actions {
+    padding: 0.75rem !important;
+    
+    .q-btn {
+      font-size: 0.9rem;
+      padding: 0.5rem 1rem;
+    }
+  }
+}
 </style>
+

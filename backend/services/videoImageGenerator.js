@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { DEFAULT_REPLICATE_OPTIONS } from '../config/replicate.js';
 import { prepareImageForVideo, prepareMultipleImagesForVideo } from '../utils/imageUtils.js';
 import { addImageToCurrentCollection } from './collectionManager.js';
-import { saveMediaFile, getFileExtension, generateUniqueFileName } from '../utils/fileUtils.js';
+import { saveMediaFile, getFileExtension, generateUniqueFileName, getMediaFilePath } from '../utils/fileUtils.js';
 
 // Calculer __dirname pour les modules ES
 const __filename = fileURLToPath(import.meta.url);
@@ -129,7 +129,8 @@ export async function generateVideoFromImage(params) {
   if (typeof params.image === 'string' && params.image.startsWith('/medias/')) {
     console.log('📁 Lecture du fichier image local:', params.image);
     try {
-      const fullPath = path.join(__dirname, '..', params.image);
+      const filename = params.image.replace('/medias/', '');
+      const fullPath = getMediaFilePath(filename);
       imageBuffer = await fs.readFile(fullPath);
       console.log(`✅ Fichier image lu (${Math.round(imageBuffer.length / 1024)}KB)`);
     } catch (error) {
@@ -141,7 +142,8 @@ export async function generateVideoFromImage(params) {
   if (typeof params.lastImage === 'string' && params.lastImage.startsWith('/medias/')) {
     console.log('📁 Lecture du fichier lastImage local:', params.lastImage);
     try {
-      const fullPath = path.join(__dirname, '..', params.lastImage);
+      const filename = params.lastImage.replace('/medias/', '');
+      const fullPath = getMediaFilePath(filename);
       lastImageBuffer = await fs.readFile(fullPath);
       console.log(`✅ Fichier lastImage lu (${Math.round(lastImageBuffer.length / 1024)}KB)`);
     } catch (error) {

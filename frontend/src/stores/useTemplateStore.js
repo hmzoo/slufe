@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
+import { api } from 'src/boot/axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+// Utiliser l'instance axios configurée dans boot/axios.js
+// qui gère automatiquement les URLs en dev et prod
 
 /**
  * Store dédié à la gestion des templates de workflows
@@ -78,7 +79,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       console.log('📋 Chargement des templates depuis le backend...')
       
-      const response = await axios.get(`${API_URL}/api/templates`)
+      const response = await api.get('/templates')
       
       if (response.data.success) {
         // Normaliser tous les templates chargés pour s'assurer qu'ils ont la bonne structure
@@ -112,7 +113,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       console.log(`📋 Chargement du template ${templateId}...`)
       
-      const response = await axios.get(`${API_URL}/api/templates/${templateId}`)
+      const response = await api.get(`/templates/${templateId}`)
       
       if (response.data.success) {
         currentTemplate.value = response.data.template
@@ -158,7 +159,7 @@ export const useTemplateStore = defineStore('template', () => {
         workflow: normalizedWorkflow
       }
       
-      const response = await axios.post(`${API_URL}/api/templates`, templateDataToSend)
+      const response = await api.post('/templates', templateDataToSend)
       
       if (response.data.success) {
         const newTemplate = response.data.template
@@ -214,7 +215,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       console.log(`🔄 Mise à jour du template ${templateId}...`)
       
-      const response = await axios.put(`${API_URL}/api/templates/${templateId}`, updates)
+      const response = await api.put(`/templates/${templateId}`, updates)
       
       if (response.data.success) {
         const updatedTemplate = response.data.template
@@ -255,7 +256,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       console.log(`🗑️ Suppression du template ${templateId}...`)
       
-      const response = await axios.delete(`${API_URL}/api/templates/${templateId}`)
+      const response = await api.delete(`/templates/${templateId}`)
       
       if (response.data.success) {
         // Retirer de la liste

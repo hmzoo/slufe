@@ -1,0 +1,40 @@
+{
+  "id": "template_minimal_example",
+  "name": "Exemple Minimal",
+  "description": "Un template simple pour démarrer",
+  "category": "example",
+  "icon": "star",
+  "workflow": {
+    "name": "Exemple Minimal",
+    "description": "Template minimal avec un input texte",
+    "inputs": [
+      {
+        "id": "user_input",
+        "type": "text_input",
+        "label": "Entrez votre texte",
+        "placeholder": "Tapez quelque chose...",
+        "defaultValue": "",
+        "multiline": false,
+        "required": true
+      }
+    ],
+    "tasks": [
+      {
+        "id": "process",
+        "type": "echo",
+        "inputs": {
+          "text": "{{user_input.text}}"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "type": "text_output",
+        "inputs": {
+          "text": "{{process.text}}"
+        }
+      }
+    ]
+  }
+}

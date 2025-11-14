@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-import { generateUniqueFileName, saveMediaFile, getMediaFileUrl } from '../utils/fileUtils.js';
+import { generateUniqueFileName, saveMediaFile, getMediaFileUrl, getMediasDir } from '../utils/fileUtils.js';
 
 // Pour les imports ES6, équivalent de __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -198,7 +198,7 @@ class UploadMediaService {
   async getMediaInfo(mediaId) {
     try {
       // Cherche le fichier dans le répertoire medias
-      const mediasDir = path.join(__dirname, '../medias');
+      const mediasDir = getMediasDir();
       const files = await fs.readdir(mediasDir);
       
       // Trouve le fichier correspondant à l'ID (UUID)
@@ -268,7 +268,7 @@ class UploadMediaService {
    */
   async listAllMedias() {
     try {
-      const mediasDir = path.join(__dirname, '../medias');
+      const mediasDir = getMediasDir();
       const files = await fs.readdir(mediasDir);
       
       const medias = [];

@@ -1,5 +1,6 @@
 import { concatenateVideos } from '../videoProcessor.js';
 import { addImageToCurrentCollection } from '../collectionManager.js';
+import { getMediasDir } from '../../utils/fileUtils.js';
 import path from 'path';
 
 /**
@@ -216,7 +217,7 @@ export class VideoConcatenateTask {
     // Convertir les URLs relatives (/medias/...) en chemins absolus
     if (videoPath.startsWith('/medias/')) {
       const filename = videoPath.replace('/medias/', '');
-      videoPath = path.join(process.cwd(), 'medias', filename);
+      videoPath = path.join(getMediasDir(), filename);
     }
 
     return videoPath;

@@ -71,6 +71,10 @@ app.use('/medias', express.static(mediasPath));
 const workflowsPath = getWorkflowsDir();
 app.use('/workflows', express.static(workflowsPath));
 
+// Servir l'application SmallApp
+const smallappsPath = path.join(__dirname, '../smallapps');
+app.use('/smallapps', express.static(smallappsPath));
+
 // Servir les fichiers statiques du frontend (après build)
 const frontendPath = path.join(__dirname, '../frontend/dist/spa');
 app.use(express.static(frontendPath));

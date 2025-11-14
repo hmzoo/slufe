@@ -116,12 +116,17 @@ export class EditImageTask {
       });
 
       // Appel du service d'édition d'images - toujours utiliser editImage avec le nouveau format
+      // Mapper "original" vers "match_input_image" pour le backend
+      const aspectRatio = inputs.aspectRatio === 'original' 
+        ? 'match_input_image' 
+        : (inputs.aspectRatio || 'match_input_image');
+      
       const editImageParams = {
         prompt: inputs.prompt,
         image1: processedImages[0],
         image2: processedImages[1],
         image3: processedImages[2],
-        aspectRatio: this.getAspectRatioFromStrength(editParams.strength),
+        aspectRatio: aspectRatio,
         outputFormat: 'jpg'
       };
       

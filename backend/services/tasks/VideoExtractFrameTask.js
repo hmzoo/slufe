@@ -1,4 +1,5 @@
 import { extractVideoFrame } from '../videoProcessor.js';
+import { getMediasDir } from '../../utils/fileUtils.js';
 import path from 'path';
 
 /**
@@ -173,7 +174,7 @@ export class VideoExtractFrameTask {
     // Convertir les URLs relatives (/medias/...) en chemins absolus
     if (videoPath.startsWith('/medias/')) {
       const filename = videoPath.replace('/medias/', '');
-      videoPath = path.join(process.cwd(), 'medias', filename);
+      videoPath = path.join(getMediasDir(), filename);
     }
 
     return videoPath;

@@ -1,0 +1,63 @@
+{
+  "id": "template_1763123120580_s1vmja2zu",
+  "name": "allaround",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Workflow en cours",
+    "description": "Workflow créé avec le Builder",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "generate1",
+        "type": "generate_video_i2v",
+        "inputs": {
+          "image": "{{image1.image}}",
+          "lastImage": "",
+          "prompt": " there is some wind blowing through the trees, The camera  follows the person, the person is moving away from a graceful side angle, ",
+          "aspectRatio": "9:16",
+          "loraWeightsTransformer": "",
+          "loraScaleTransformer": 1,
+          "loraWeightsTransformer2": "",
+          "loraScaleTransformer2": 1,
+          "resolution": "480p",
+          "framesPerSecond": 16,
+          "interpolateOutput": true,
+          "goFast": true,
+          "sampleShift": 12,
+          "seed": 0,
+          "disable_safety_checker": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "video1",
+        "type": "video_output",
+        "inputs": {
+          "video": "{{generate1.video}}",
+          "title": "",
+          "width": "",
+          "autoplay": false,
+          "controls": true,
+          "loop": false
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-14T12:25:20.581Z",
+  "createdFrom": "workflow_1763122300042",
+  "tags": []
+}
