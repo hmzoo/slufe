@@ -310,8 +310,8 @@
                                         </div>
                                         
                                         <!-- Image -->
-                                        <div v-if="taskResult.outputs.image_url" class="q-mb-sm">
-                                            <q-img :src="taskResult.outputs.image_url" :ratio="16/9" class="rounded-borders" />
+                                        <div v-if="taskResult.outputs.image_url" class="q-mb-sm" style="max-width: 720px; margin: 0 auto;">
+                                            <q-img :src="taskResult.outputs.image_url" :ratio="16/9" class="rounded-borders" style="max-width: 720px; max-height: 720px; object-fit: contain;" />
                                         </div>
                                         
                                         <!-- Autres métadonnées -->
@@ -344,8 +344,8 @@
                                         "{{ result.result.text }}"
                                     </div>
                                     
-                                    <div v-if="result.result?.image_url" class="q-mt-sm">
-                                        <q-img :src="result.result.image_url" :ratio="16/9" class="rounded-borders" />
+                                    <div v-if="result.result?.image_url" class="q-mt-sm" style="max-width: 720px; margin: 0 auto;">
+                                        <q-img :src="result.result.image_url" :ratio="16/9" class="rounded-borders" style="max-width: 720px; max-height: 720px; object-fit: contain;" />
                                     </div>
                                     
                                     <div v-if="result.result?.video_url || result.result?.video" class="q-mt-sm">
@@ -1635,8 +1635,26 @@ const clearWorkflow = () => {
 }
 
 // Initialisation du composant
-onMounted(() => {
+onMounted(async () => {
     console.log('WorkflowBuilder: Initialisation')
+    
+    // Initialiser les collections
+    try {
+        // Charger toutes les collections depuis le backend
+        await collectionStore.fetchCollections()
+        
+        // Ensuite initialiser la collection active
+        await collectionStore.initializeCurrentCollection()
+        
+        if (collectionStore.hasCurrentCollection) {
+            console.log('✅ Collection active:', collectionStore.currentCollection?.name)
+            console.log('📊 Médias disponibles:', collectionStore.currentCollectionStats)
+        } else {
+            console.warn('⚠️ Aucune collection active définie')
+        }
+    } catch (err) {
+        console.error('❌ Erreur lors de l\'initialisation des collections:', err)
+    }
     
     // Charger le workflow persisté depuis le store
     const persistedWorkflow = workflowStore.getCurrentBuilderWorkflow()

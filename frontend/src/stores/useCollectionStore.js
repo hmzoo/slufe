@@ -434,38 +434,38 @@ export const useCollectionStore = defineStore('collections', () => {
     try {
       console.log('🔄 Initialisation de la collection active...')
       
-      // 1. Essayer de récupérer la collection active depuis le serveur
-      await fetchCurrentCollection()
-      
-      // 2. Si aucune collection active sur le serveur, essayer depuis localStorage
-      if (!serverCurrentCollection.value) {
-        const storedCollectionId = getCurrentCollectionFromStorage()
-        console.log('📱 Collection stockée localement:', storedCollectionId)
-        
-        if (storedCollectionId) {
-          try {
-            // Vérifier que la collection existe encore
-            const detailedCollection = await fetchCollectionById(storedCollectionId)
-            if (detailedCollection) {
-              console.log('✅ Restauration de la collection depuis localStorage:', storedCollectionId)
-              await setCurrentCollection(storedCollectionId)
-              // Aussi définir comme défaut
-              setDefaultCollection(storedCollectionId)
-              return
-            }
-          } catch (e) {
-            console.warn('⚠️ Collection stockée introuvable, nettoyage localStorage')
-            localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID)
+      // 1. Priorité: Essayer depuis localStorage en premier
+      const storedCollectionId = getCurrentCollectionFromStorage()
+      if (storedCollectionId) {
+        console.log('📱 Collection trouvée en localStorage:', storedCollectionId)
+        try {
+          // Vérifier que la collection existe encore
+          const detailedCollection = await fetchCollectionById(storedCollectionId)
+          if (detailedCollection) {
+            console.log('✅ Collection restaurée depuis localStorage:', storedCollectionId)
+            currentCollection.value = detailedCollection
+            return
           }
+        } catch (e) {
+          console.warn('⚠️ Collection stockée introuvable, nettoyage localStorage')
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_COLLECTION_ID)
         }
       }
       
+      // 2. Ensuite essayer de récupérer la collection active depuis le serveur
+      await fetchCurrentCollection()
+      if (serverCurrentCollection.value) {
+        currentCollection.value = serverCurrentCollection.value
+        return
+      }
+      
       // 3. Si toujours pas de collection active, prendre la première disponible comme défaut
-      if (!serverCurrentCollection.value && collections.value.length > 0) {
+      if (collections.value.length > 0) {
         const firstCollection = collections.value[0]
         console.log('🎯 Définition de la collection par défaut:', firstCollection.id)
         setDefaultCollection(firstCollection.id)
         await setCurrentCollection(firstCollection.id)
+        return
       }
       
       // 4. Si aucune collection n'existe, l'utilisateur devra en créer une

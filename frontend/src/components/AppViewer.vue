@@ -1783,11 +1783,17 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 250px;
   margin-bottom: 1rem;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
 
   .result-image {
-    max-width: 100%;
+    max-width: 720px;
+    max-height: 720px;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
