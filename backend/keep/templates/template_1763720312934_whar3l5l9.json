@@ -1,0 +1,51 @@
+{
+  "id": "template_1763720312934_whar3l5l9",
+  "name": "to ink draw",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Workflow en cours",
+    "description": "",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "inputs": {
+          "image1": "{{image1.image}}",
+          "image2": "",
+          "image3": "",
+          "editPrompt": "black and white Milo Manara style ink drawing of the picture, clean precise line art, graceful curves, minimal hatching, subtle shadows, no solid black areas, realistic yet idealized anatomy, sensual pose, elegant composition, looks like a page of European erotic comic art, high detail, sharp ink lines",
+          "aspectRatio": "original"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image2",
+        "type": "image_output",
+        "inputs": {
+          "image": "{{edit1.edited_images}}",
+          "title": "",
+          "caption": "",
+          "width": ""
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-21T10:18:32.934Z",
+  "createdFrom": null,
+  "tags": []
+}

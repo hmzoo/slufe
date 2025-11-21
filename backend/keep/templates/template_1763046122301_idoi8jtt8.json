@@ -1,0 +1,62 @@
+{
+  "id": "template_1763046122301_idoi8jtt8",
+  "name": "test edition d image",
+  "description": "Template créé à partir du workflow \"test edition d image\" - 13/11/2025",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "test edition d image",
+    "description": "",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "image": "/medias/2b34a259-cd06-4224-beb2-e299db73e6c2.png",
+        "defaultImage": "",
+        "selectedImage": "/medias/7dab6612-201a-437c-a8ec-962e160858a7.jpg"
+      },
+      {
+        "id": "text1",
+        "type": "text_input",
+        "label": "edition",
+        "placeholder": "",
+        "defaultValue": "",
+        "multiline": false,
+        "required": true,
+        "userInput": "turn 90 degres right"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "inputs": {
+          "image1": "{{image1.image}}",
+          "image2": "",
+          "image3": "",
+          "editPrompt": "{{text1.text}}",
+          "aspectRatio": "original"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image2",
+        "type": "image_output",
+        "inputs": {
+          "image": "{{edit1.edited_images}}",
+          "title": "",
+          "caption": "",
+          "width": "medium"
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-13T15:02:02.302Z",
+  "createdFrom": null,
+  "tags": []
+}

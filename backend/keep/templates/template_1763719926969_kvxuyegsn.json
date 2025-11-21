@@ -1,0 +1,51 @@
+{
+  "id": "template_1763719926969_kvxuyegsn",
+  "name": "extract openpose",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Workflow en cours",
+    "description": "",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "inputs": {
+          "image1": "{{image1.image}}",
+          "image2": "",
+          "image3": "",
+          "editPrompt": "Extract the OpenPose skeleton from this character image. Generate a stick figure representation showing all body joints and pose keypoints, similar to OpenPose output. Keep the pose accurate and do not add any background or extra details. Render only the pose as a skeleton overlay on a solid black background with no transparency or additional elements.",
+          "aspectRatio": "original"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image3",
+        "type": "image_output",
+        "inputs": {
+          "image": "{{edit1.edited_images}}",
+          "title": "",
+          "caption": "",
+          "width": ""
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-21T10:12:06.969Z",
+  "createdFrom": null,
+  "tags": []
+}

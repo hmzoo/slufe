@@ -1,0 +1,61 @@
+{
+  "id": "template_1763719092515_imdl1bnz3",
+  "name": "use openpose",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Workflow en cours",
+    "description": "",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      },
+      {
+        "id": "image2",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "edit1",
+        "type": "edit_image",
+        "inputs": {
+          "image1": "{{image1.image}}",
+          "image2": "",
+          "image3": "{{image2.image}}",
+          "editPrompt": "Apply the pose from the OpenPose image (image 2) onto the character in the reference photo (image 1). Keep the character's appearance, features, and details unchanged while transforming the posture and limb positions to match the OpenPose skeleton exactly. Preserve natural proportions and avoid altering backgrounds or adding new elements.",
+          "aspectRatio": "original"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image3",
+        "type": "image_output",
+        "inputs": {
+          "image": "{{edit1.edited_images}}",
+          "title": "",
+          "caption": "",
+          "width": ""
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-21T09:58:12.516Z",
+  "createdFrom": null,
+  "tags": []
+}

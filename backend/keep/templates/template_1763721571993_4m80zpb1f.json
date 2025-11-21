@@ -1,0 +1,48 @@
+{
+  "id": "template_1763721571993_4m80zpb1f",
+  "name": "describe",
+  "description": "",
+  "category": "custom",
+  "icon": "dashboard",
+  "workflow": {
+    "name": "Workflow personnalisé",
+    "description": "Workflow créé avec le Builder",
+    "inputs": [
+      {
+        "id": "image1",
+        "type": "image_input",
+        "label": "",
+        "multiple": false,
+        "required": true,
+        "maxFiles": 5,
+        "selectedImage": "",
+        "defaultImage": ""
+      }
+    ],
+    "tasks": [
+      {
+        "id": "describe1",
+        "type": "describe_images",
+        "inputs": {
+          "images": "{{image1.image}}",
+          "question": "",
+          "language": "en"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "id": "text1",
+        "type": "text_output",
+        "inputs": {
+          "text": "{{describe1.descriptions}}",
+          "title": "",
+          "format": ""
+        }
+      }
+    ]
+  },
+  "createdAt": "2025-11-21T10:39:31.994Z",
+  "createdFrom": "workflow_1763721423402",
+  "tags": []
+}
