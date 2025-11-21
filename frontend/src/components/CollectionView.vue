@@ -484,15 +484,15 @@
         </q-card-section>
         
         <!-- Contenu principal -->
-        <q-card-section class="q-pa-none flex flex-center full-height" style="background: black;" v-if="previewedMedia">
-          <div class="relative-position full-width full-height flex flex-center">
+        <q-card-section class="q-pa-none flex flex-center" style="background: black; padding-top: 80px; padding-bottom: 80px; min-height: 100vh;" v-if="previewedMedia">
+          <div class="relative-position full-width flex flex-center" style="padding: 1rem;">
             <!-- Image ou vidéo -->
             <q-img
               v-if="previewedMedia.type === 'image'"
               :src="getMediaUrl(previewedMedia)"
               fit="contain"
-              class="full-width full-height"
-              style="max-height: 100vh;"
+              class="full-width"
+              style="max-height: calc(100vh - 200px);"
             >
               <template v-slot:error>
                 <div class="absolute-full flex flex-center bg-grey-8">
@@ -508,8 +508,8 @@
               v-else-if="previewedMedia.type === 'video'"
               :src="getMediaUrl(previewedMedia)"
               controls
-              class="full-width full-height"
-              style="max-height: 100vh; object-fit: contain;"
+              class="full-width"
+              style="max-height: calc(100vh - 200px); object-fit: contain;"
             />
             
             <!-- Flèches de navigation -->

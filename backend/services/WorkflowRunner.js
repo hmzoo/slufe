@@ -21,6 +21,7 @@ export class WorkflowRunner {
     this.taskServices.set('generate_image', null);
     this.taskServices.set('edit_image', null);
     this.taskServices.set('image_resize_crop', null);
+    this.taskServices.set('image_enhance', null);
     this.taskServices.set('generate_video_t2v', null);
     this.taskServices.set('generate_video_i2v', null);
     this.taskServices.set('generate_workflow', null);
@@ -423,6 +424,7 @@ export class WorkflowRunner {
       'generate_image': './tasks/GenerateImageTask.js',
       'edit_image': './tasks/EditImageTask.js',
       'image_resize_crop': './tasks/ImageResizeCropTask.js',
+      'image_enhance': './tasks/ImageEnhanceTask.js',
       'generate_video_t2v': './tasks/GenerateVideoT2VTask.js',
       'generate_video_i2v': './tasks/GenerateVideoI2VTask.js',
       'generate_workflow': './tasks/GenerateWorkflowTask.js',
@@ -687,6 +689,7 @@ class WorkflowExecution {
 
     // Résolution des outputs du workflow
     const outputs = {};
+    let outputsList = []; // Format array pour le frontend
     
     if (this.workflow.outputs) {
       if (Array.isArray(this.workflow.outputs)) {
@@ -699,6 +702,21 @@ class WorkflowExecution {
               type: outputTask.type,
               result: taskResult.outputs
             };
+            
+            // Ajouter à la liste des résultats avec le bon format pour le frontend
+            // Si le résultat a un type (image, video), l'utiliser directement
+            if (taskResult.outputs && taskResult.outputs.type) {
+              outputsList.push({
+                id: outputTask.id,
+                taskType: outputTask.type,
+                type: taskResult.outputs.type,  // Type du contenu (image, video)
+                url: taskResult.outputs.image || taskResult.outputs.video || taskResult.outputs.url,
+                path: taskResult.outputs.image || taskResult.outputs.video || taskResult.outputs.url,
+                mediaId: `workflow-${Date.now()}-${index}`,
+                description: taskResult.outputs.description || taskResult.outputs.caption || '',
+                ...taskResult.outputs  // Inclure tous les outputs
+              });
+            }
           }
         });
       } else {
@@ -710,6 +728,27 @@ class WorkflowExecution {
           } else {
             outputs[key] = path;
           }
+        }
+      }
+    }
+
+    // Si pas d'outputs explicites, créer outputsList depuis tous les taskResults avec type image/video
+    if (outputsList.length === 0) {
+      let index = 0;
+      for (const [taskId, taskResult] of this.taskResults.entries()) {
+        if (taskResult.status === 'completed' && taskResult.outputs && taskResult.outputs.type && 
+            (taskResult.outputs.type === 'image' || taskResult.outputs.type === 'video')) {
+          outputsList.push({
+            id: taskId,
+            taskType: taskResult.type,
+            type: taskResult.outputs.type,  // Type du contenu (image, video)
+            url: taskResult.outputs.image || taskResult.outputs.video || taskResult.outputs.url,
+            path: taskResult.outputs.image || taskResult.outputs.video || taskResult.outputs.url,
+            mediaId: `workflow-${Date.now()}-${index}`,
+            description: taskResult.outputs.description || taskResult.outputs.caption || '',
+            ...taskResult.outputs  // Inclure tous les outputs
+          });
+          index++;
         }
       }
     }
@@ -729,7 +768,8 @@ class WorkflowExecution {
         started_at: new Date(this.startTime).toISOString(),
         completed_at: this.endTime ? new Date(this.endTime).toISOString() : null
       },
-      results: outputs,
+      results: outputsList.length > 0 ? outputsList : outputs,  // Retourner array si possible, sinon objet
+      results_object: outputs,  // Garder aussi l'objet pour compatibilité
       task_results: taskResults,
       error: this.error
     };

@@ -172,9 +172,9 @@ export const TASK_DEFINITIONS = {
       }
     },
     outputs: {
-      image_url: {
+      image: {
         type: 'image',
-        description: 'URL de l\'image redimensionnée/recadrée'
+        description: 'Image redimensionnée/recadrée'
       },
       original_dimensions: {
         type: 'object',
@@ -980,6 +980,67 @@ export const TASK_DEFINITIONS = {
       image: {
         type: 'image',
         description: 'Image capturée'
+      }
+    }
+  },
+
+  image_enhance: {
+    type: 'image_enhance',
+    name: 'Amélioration d\'image',
+    icon: 'auto_awesome',
+    color: 'cyan',
+    category: 'image',
+    description: 'Améliore et upscale une image avec Real-ESRGAN',
+    model: 'Real-ESRGAN',
+    inputs: {
+      image: {
+        type: 'image',
+        label: 'Image à améliorer',
+        required: true,
+        acceptsVariable: true
+      },
+      scale: {
+        type: 'select',
+        label: 'Facteur d\'upscaling',
+        required: false,
+        options: [
+          { label: '2x (petit upscale)', value: 2 },
+          { label: '4x (standard)', value: 4 },
+          { label: '6x (grand upscale)', value: 6 },
+          { label: '8x (très grand)', value: 8 },
+          { label: '10x (maximum)', value: 10 }
+        ],
+        default: 4,
+        acceptsVariable: false
+      },
+      face_enhance: {
+        type: 'select',
+        label: 'Amélioration des visages',
+        required: false,
+        options: [
+          { label: 'Désactivée', value: false },
+          { label: 'Activée (GFPGAN)', value: true }
+        ],
+        default: false,
+        acceptsVariable: false
+      }
+    },
+    outputs: {
+      image: {
+        type: 'image',
+        description: 'Image améliorée'
+      },
+      image_filename: {
+        type: 'string',
+        description: 'Nom du fichier de l\'image améliorée'
+      },
+      scale: {
+        type: 'number',
+        description: 'Facteur d\'upscaling appliqué'
+      },
+      face_enhance: {
+        type: 'boolean',
+        description: 'État de l\'amélioration des visages'
       }
     }
   }

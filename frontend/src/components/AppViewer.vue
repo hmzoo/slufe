@@ -546,29 +546,29 @@
               </div>
 
               <!-- Résultats organisés -->
-              <div v-if="executionResult.results && Object.keys(executionResult.results).length > 0" class="results-content">
+              <div v-if="normalizeResults(executionResult.results) && normalizeResults(executionResult.results).length > 0" class="results-content">
                 <div
-                  v-for="(item, key) in executionResult.results"
-                  :key="`result-${key}`"
+                  v-for="(item, idx) in normalizeResults(executionResult.results)"
+                  :key="`result-${idx}`"
                   class="result-card"
                 >
                   <!-- IMAGE OUTPUT - Carrousel/Galerie -->
-                  <div v-if="item.type === 'image_output'">
-                    <div v-if="item.result.title" class="result-card-title">
-                      {{ item.result.title }}
+                  <div v-if="item.type === 'image' || item.type === 'image_output'">
+                    <div v-if="item.title" class="result-card-title">
+                      {{ item.title }}
                     </div>
 
-                    <div v-if="item.result.image_url || item.result.image" class="result-image-container">
+                    <div v-if="item.image_url || item.image || item.url" class="result-image-container">
                       <q-img
-                        :src="item.result.image_url || item.result.image"
+                        :src="item.image_url || item.image || item.url"
                         fit="scale-down"
                         class="result-image"
                         style="max-height: 500px"
                       />
                     </div>
 
-                    <div v-if="item.result.caption" class="result-caption">
-                      {{ item.result.caption }}
+                    <div v-if="item.caption" class="result-caption">
+                      {{ item.caption }}
                     </div>
 
                     <!-- Boutons de téléchargement -->
@@ -578,25 +578,37 @@
                         icon="download"
                         label="Télécharger"
                         size="sm"
-                        @click="downloadImage(item.result.image_url || item.result.image)"
+                        @click="downloadImage(item.image_url || item.image || item.url)"
                       />
                     </div>
                   </div>
 
                   <!-- TEXT OUTPUT -->
-                  <div v-else-if="item.type === 'text_output'">
-                    <div v-if="item.result.title" class="result-card-title">
-                      {{ item.result.title }}
+                  <div v-else-if="item.type === 'text_output' || (item.text && !item.type)">
+                    <div v-if="item.title" class="result-card-title">
+                      {{ item.title }}
                     </div>
                     <div class="text-output-box">
-                      {{ item.result.text || JSON.stringify(item.result) }}
+                      {{ item.text || JSON.stringify(item) }}
                     </div>
                   </div>
 
                   <!-- AUTRES OUTPUTS -->
                   <div v-else class="json-output">
-                    <pre>{{ JSON.stringify(item.result, null, 2) }}</pre>
+                    <pre>{{ JSON.stringify(item, null, 2) }}</pre>
                   </div>
+                </div>
+              </div>
+
+              <!-- MESSAGE SI AUCUN RÉSULTAT -->
+              <div v-else class="empty-state" style="padding: 2rem;">
+                <q-icon name="info" size="3rem" color="amber" class="q-mb-md" />
+                <div class="text-h6">Aucun résultat à afficher</div>
+                <div class="text-caption text-grey-7 q-mt-sm">
+                  Le workflow s'est exécuté mais n'a pas retourné de résultat.
+                </div>
+                <div class="text-caption text-grey-6 q-mt-md">
+                  DEBUG: {{ executionResult?.results ? 'Résultats présents' : 'Pas de résultats' }}
                 </div>
               </div>
 
@@ -1046,6 +1058,38 @@ const resetForm = () => {
   }
 
   clearResults()
+}
+
+const normalizeResults = (results) => {
+  // Convertir les résultats en format array uniforme
+  if (!results) return []
+  
+  // Si c'est déjà un array, le retourner
+  if (Array.isArray(results)) {
+    console.log('✅ Résultats en format array:', results.length, 'items')
+    return results
+  }
+  
+  // Si c'est un objet, le convertir en array
+  if (typeof results === 'object') {
+    const resultsArray = Object.entries(results).map(([key, value]) => {
+      // Chaque item doit avoir au moins un type
+      if (value && typeof value === 'object' && value.type) {
+        return value
+      }
+      // Sinon, créer un item formaté
+      return {
+        id: key,
+        type: typeof value === 'string' && (value.startsWith('/medias/') || value.startsWith('data:image/')) ? 'image' : 'text',
+        result: value,
+        ...value  // Flatten les propriétés
+      }
+    })
+    console.log('✅ Résultats convertis en format array:', resultsArray.length, 'items')
+    return resultsArray
+  }
+  
+  return []
 }
 
 const executeTemplate = async () => {
